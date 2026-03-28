@@ -1,0 +1,44 @@
+name: Publish Types
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Trigger only when source files change (adjust to your src dir)
+      - 'src/**/*.ts'
+      - 'typeship.config.json'
+
+jobs:
+  publish-types:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          # For npmjs.org use: registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate publishable types
+        run: npx typeship generate --bump patch
+        # Options:
+        #   --bump patch|minor|major   Auto-bump version
+        #   --out-dir ./generated      Output directory
+        #   --package-name @org/types  Override package name
+        #   --dry-run                  Preview without publishing
+
+      - name: Publish to GitHub Packages
+        working-directory: ./generated
+        run: |
+          npm install
+          npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

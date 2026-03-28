@@ -1,0 +1,70 @@
+import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import type { ExtractionResult } from './extractor.js';
+
+export interface EmitterOptions {
+  /** Absolute path to the output directory root (e.g. /project/generated). */
+  outDir: string;
+  /** When true, log what would be written but don't touch the filesystem. */
+  dryRun?: boolean;
+}
+
+export interface EmittedFile {
+  path: string;
+  content: string;
+}
+
+export interface EmitResult {
+  files: EmittedFile[];
+  barrelPath: string;
+}
+
+/**
+ * Writes extracted type files and a barrel index.ts into outDir/src/.
+ * Returns the list of files that were (or would be) written.
+ */
+export function emit(
+  extraction: ExtractionResult,
+  options: EmitterOptions,
+): EmitResult {
+  const srcDir = resolve(options.outDir, 'src');
+  const dryRun = options.dryRun ?? false;
+
+  if (!dryRun) {
+    mkdirSync(srcDir, { recursive: true });
+  }
+
+  const emitted: EmittedFile[] = [];
+
+  for (const file of extraction.files) {
+    const dest = join(srcDir, file.fileName);
+    emitted.push({ path: dest, content: file.content });
+    if (!dryRun) {
+      writeFileSync(dest, file.content, 'utf8');
+    }
+  }
+
+  // Generate barrel file
+  const barrelLines = extraction.files.map(
+    (f) => `export * from './${f.fileName.replace(/\.ts$/, '.js')}';`,
+  );
+  barrelLines.push('');
+  const barrelContent = barrelLines.join('\n');
+  const barrelPath = join(srcDir, 'index.ts');
+
+  emitted.push({ path: barrelPath, content: barrelContent });
+  if (!dryRun) {
+    writeFileSync(barrelPath, barrelContent, 'utf8');
+  }
+
+  // Verify written files exist (skip in dry-run)
+  if (!dryRun) {
+    for (const f of emitted) {
+      if (!existsSync(f.path)) {
+        throw new Error(`Emitter failed: expected file not found at ${f.path}`);
+      }
+    }
+  }
+
+  return { files: emitted, barrelPath };
+}
