@@ -10,8 +10,16 @@ Mark a type as **publishable**, run `npx typeship generate`, and get a ready-to-
 
 ## Quick Start
 
+`typeship` is published to GitHub Packages. Add the registry to your `.npmrc` first:
+
+```
+@arompr:registry=https://npm.pkg.github.com
+```
+
+Then install:
+
 ```bash
-npm install --save-dev typeship
+npm install --save-dev @arompr/typeship
 ```
 
 ### 1. Mark your types
