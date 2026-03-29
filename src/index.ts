@@ -9,6 +9,7 @@ export type {
   ScannerOptions,
   ExtractedFile,
   ExtractionResult,
+  ExtractionDiagnostic,
   EmitterOptions,
   EmittedFile,
   EmitResult,

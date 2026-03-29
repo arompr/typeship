@@ -59,4 +59,97 @@ describe('extract', () => {
     expect(result.files).toHaveLength(0);
     expect(result.exportedNames).toHaveLength(0);
   });
+
+  it('does not produce false-positive diagnostics for property names matching local type names', () => {
+    // Property "id" should not match a local type also named "id"
+    const scanResult = buildScanResult(`
+      export type id = string;
+
+      /** @publish */
+      export interface UserDto {
+        id: string;
+      }
+    `);
+    const result = extract([scanResult]);
+    // "id" property name must not pull in "id" type alias as a false dependency
+    expect(result.diagnostics).toHaveLength(0);
+    // "id" type alias should NOT be included (it's not genuinely used as a type reference)
+    expect(result.files[0]?.content).not.toMatch(/export type id/);
+  });
+
+  it('produces no diagnostics when all types are primitives or built-ins', () => {
+    const scanResult = buildScanResult(`
+      /** @publish */
+      export interface UserDto {
+        id: string;
+        count: number;
+        active: boolean;
+        createdAt: Date;
+      }
+    `);
+    const result = extract([scanResult]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('produces a diagnostic for a cross-file type that is not marked @publish', () => {
+    const project = new Project({ useInMemoryFileSystem: true });
+    project.createSourceFile('/address.ts', `
+      export interface Address {
+        street: string;
+        city: string;
+      }
+    `);
+    const userFile = project.createSourceFile('/user.dto.ts', `
+      import { Address } from './address.js';
+
+      /** @publish */
+      export interface UserDto {
+        id: string;
+        address: Address;
+      }
+    `);
+    const nodes = findPublishableNodes(userFile);
+    const result = extract([{ sourceFile: userFile, nodes }]);
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]?.typeName).toBe('Address');
+    expect(result.diagnostics[0]?.filePath).toContain('address.ts');
+  });
+
+  it('produces no diagnostic when the cross-file type is marked @publish', () => {
+    const project = new Project({ useInMemoryFileSystem: true });
+    project.createSourceFile('/address.ts', `
+      /** @publish */
+      export interface Address {
+        street: string;
+        city: string;
+      }
+    `);
+    const userFile = project.createSourceFile('/user.dto.ts', `
+      import { Address } from './address.js';
+
+      /** @publish */
+      export interface UserDto {
+        id: string;
+        address: Address;
+      }
+    `);
+    const nodes = findPublishableNodes(userFile);
+    const result = extract([{ sourceFile: userFile, nodes }]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('produces no diagnostic for types imported from non-relative (package) imports', () => {
+    const project = new Project({ useInMemoryFileSystem: true });
+    const userFile = project.createSourceFile('/user.dto.ts', `
+      import { IsString } from 'class-validator';
+
+      /** @publish */
+      export interface UserDto {
+        id: IsString;
+      }
+    `);
+    const nodes = findPublishableNodes(userFile);
+    const result = extract([{ sourceFile: userFile, nodes }]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
 });

@@ -72,6 +72,17 @@ export function makeGenerateCommand(): Command {
         log.info('Extracting types...');
         const extraction = extract(scanResults);
 
+        if (extraction.diagnostics.length > 0) {
+          for (const d of extraction.diagnostics) {
+            log.error(
+              `Type ${pc.bold(d.typeName)} is used by a published type but is not marked @publish.\n` +
+              `  Add ${pc.cyan('/** @publish */')} to ${pc.bold(d.typeName)} in ${d.filePath}`,
+            );
+          }
+          log.error(`${extraction.diagnostics.length} type dependency error(s) found. Fix the above and re-run.`);
+          process.exit(1);
+        }
+
         log.info(`Generating package to: ${pc.bold(outDir)}`);
 
         if (dryRun) {
