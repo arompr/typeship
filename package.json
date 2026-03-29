@@ -1,8 +1,14 @@
 {
   "name": "@arompr/typeship",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Mark TypeScript types as publishable and automatically extract, package, and publish them.",
-  "keywords": ["typescript", "types", "publish", "codegen", "ast"],
+  "keywords": [
+    "typescript",
+    "types",
+    "publish",
+    "codegen",
+    "ast"
+  ],
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,7 +22,10 @@
   "bin": {
     "typeship": "./dist/cli/index.js"
   },
-  "files": ["dist", "templates"],
+  "files": [
+    "dist",
+    "templates"
+  ],
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
