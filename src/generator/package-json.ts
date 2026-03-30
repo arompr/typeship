@@ -19,11 +19,9 @@ export interface GeneratedPackageJson {
   name: string;
   version: string;
   description: string;
-  main: string;
   types: string;
   files: string[];
   publishConfig: { registry: string };
-  devDependencies: Record<string, string>;
 }
 
 /**
@@ -63,13 +61,9 @@ export function generatePackageJson(
     name: options.name,
     version,
     description: `TypeScript types published by typeship from ${options.name}`,
-    main: './dist/index.js',
-    types: './dist/index.d.ts',
-    files: ['dist', 'src'],
+    types: './src/index.d.ts',
+    files: ['src'],
     publishConfig: { registry },
-    devDependencies: {
-      typescript: '^5.0.0',
-    },
   };
 }
 

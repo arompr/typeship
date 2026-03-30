@@ -99,14 +99,17 @@ function collectLocalDependencies(
 /**
  * Checks whether a type name referenced in publishable nodes comes from a
  * relative import that is not itself marked @publish, and collects diagnostics.
+ * Also returns the set of cross-file import names that ARE properly marked
+ * @publish so the emitter can retain those imports in the generated output.
  */
 function collectCrossFileDiagnostics(
   publishableNodes: Node[],
   sourceFile: SourceFile,
   needed: Set<string>,
-): ExtractionDiagnostic[] {
+): { diagnostics: ExtractionDiagnostic[]; validCrossFileImports: Set<string> } {
   const diagnostics: ExtractionDiagnostic[] = [];
-  const reported = new Set<string>();
+  const validCrossFileImports = new Set<string>();
+  const seen = new Set<string>();
 
   // Build a map of import name → source file for all relative imports
   const relativeImportMap = new Map<string, SourceFile>();
@@ -127,8 +130,9 @@ function collectCrossFileDiagnostics(
       if (!child.isKind(SyntaxKind.TypeReference)) return;
       const typeName = child.asKindOrThrow(SyntaxKind.TypeReference).getTypeName().getText();
 
-      // Already resolved locally or already reported
-      if (needed.has(typeName) || reported.has(typeName)) return;
+      // Already resolved locally or already processed
+      if (needed.has(typeName) || seen.has(typeName)) return;
+      seen.add(typeName);
 
       const resolvedFile = relativeImportMap.get(typeName);
       if (!resolvedFile) return; // not a relative import → skip
@@ -141,19 +145,76 @@ function collectCrossFileDiagnostics(
             isPublishableDeclaration(s) && getDeclarationName(s) === typeName,
         );
 
-      if (!decl || hasPublishJsDoc(decl) || hasPublishDecorator(decl)) return;
+      if (!decl) return;
 
-      reported.add(typeName);
-      diagnostics.push({ typeName, filePath: resolvedFile.getFilePath() });
+      if (hasPublishJsDoc(decl) || hasPublishDecorator(decl)) {
+        validCrossFileImports.add(typeName);
+      } else {
+        diagnostics.push({ typeName, filePath: resolvedFile.getFilePath() });
+      }
     });
   }
 
-  return diagnostics;
+  return { diagnostics, validCrossFileImports };
+}
+
+/**
+ * Produces an ambient class declaration suitable for a .d.ts file:
+ * property initializers and method bodies are stripped; only type
+ * signatures are kept.
+ */
+function toAmbientClassText(decl: ClassDeclaration): string {
+  const name = decl.getName() ?? '';
+
+  const typeParams = decl.getTypeParameters();
+  const typeParamsStr = typeParams.length > 0
+    ? `<${typeParams.map((p) => p.getText()).join(', ')}>`
+    : '';
+
+  const heritageClauses = decl.getHeritageClauses();
+  const heritageStr = heritageClauses.length > 0
+    ? ` ${heritageClauses.map((h) => h.getText()).join(' ')}`
+    : '';
+
+  const members: string[] = [];
+
+  for (const ctor of decl.getConstructors()) {
+    const params = ctor.getParameters().map((p) => p.getText()).join(', ');
+    members.push(`  constructor(${params});`);
+  }
+
+  for (const prop of decl.getProperties()) {
+    const modifiers = prop.getModifiers()
+      .map((m) => m.getText())
+      .filter((m) => m !== 'declare')
+      .join(' ');
+    const modStr = modifiers ? `${modifiers} ` : '';
+    const optional = prop.hasQuestionToken() ? '?' : '';
+    const typeNode = prop.getTypeNode();
+    const typeStr = typeNode ? `: ${typeNode.getText()}` : '';
+    members.push(`  ${modStr}${prop.getName()}${optional}${typeStr};`);
+  }
+
+  for (const method of decl.getMethods()) {
+    const modifiers = method.getModifiers().map((m) => m.getText()).join(' ');
+    const modStr = modifiers ? `${modifiers} ` : '';
+    const methodTypeParams = method.getTypeParameters();
+    const methodTypeParamsStr = methodTypeParams.length > 0
+      ? `<${methodTypeParams.map((p) => p.getText()).join(', ')}>`
+      : '';
+    const params = method.getParameters().map((p) => p.getText()).join(', ');
+    const returnTypeNode = method.getReturnTypeNode();
+    const returnStr = returnTypeNode ? `: ${returnTypeNode.getText()}` : '';
+    members.push(`  ${modStr}${method.getName()}${methodTypeParamsStr}(${params})${returnStr};`);
+  }
+
+  const body = members.length > 0 ? `\n${members.join('\n')}\n` : '';
+  return `export declare class ${name}${typeParamsStr}${heritageStr} {${body}}`;
 }
 
 /**
  * Extracts publishable declarations from scan results into standalone
- * TypeScript source files ready to be written to the output directory.
+ * .d.ts declaration files ready to be written to the output directory.
  */
 export function extract(scanResults: ScanResult[]): ExtractionResult {
   const extractedFiles: ExtractedFile[] = [];
@@ -162,10 +223,13 @@ export function extract(scanResults: ScanResult[]): ExtractionResult {
 
   for (const { sourceFile, nodes } of scanResults) {
     const needed = collectLocalDependencies(nodes, sourceFile);
-    const diagnostics = collectCrossFileDiagnostics(nodes, sourceFile, needed);
+    const { diagnostics, validCrossFileImports } = collectCrossFileDiagnostics(nodes, sourceFile, needed);
     allDiagnostics.push(...diagnostics);
 
-    const lines: string[] = [];
+    const lines: string[] = [
+      '// This file was auto-generated by typeship. Do not edit manually.',
+      '',
+    ];
 
     // Re-emit only the necessary imports from the original file
     const importDecls = sourceFile
@@ -174,31 +238,38 @@ export function extract(scanResults: ScanResult[]): ExtractionResult {
 
     for (const imp of importDecls) {
       const namedImports = imp.getNamedImports().map((n) => n.getName());
-      const usedImports = namedImports.filter((n) => needed.has(n));
+      const usedImports = namedImports.filter((n) => needed.has(n) || validCrossFileImports.has(n));
       if (usedImports.length > 0 || imp.getDefaultImport()) {
-        lines.push(imp.getText());
+        // Rewrite the import specifier to reference the .js path (d.ts convention)
+        const specifier = imp.getModuleSpecifierValue().replace(/\.js$/, '');
+        const names = usedImports.join(', ');
+        lines.push(`import type { ${names} } from '${specifier}.js';`);
       }
     }
 
-    if (lines.length > 0) lines.push('');
+    if (lines.length > 2) lines.push('');
 
-    // Emit the needed declarations (with export keyword)
+    // Emit the needed declarations
     for (const stmt of sourceFile.getStatements()) {
       if (!isPublishableDeclaration(stmt)) continue;
       const name = getDeclarationName(stmt);
       if (!name || !needed.has(name)) continue;
 
-      let text = stmt.getText();
-      // Ensure the declaration is exported
-      if (!text.startsWith('export')) {
-        text = `export ${text}`;
+      let text: string;
+      if (stmt.isKind(SyntaxKind.ClassDeclaration)) {
+        text = toAmbientClassText(stmt);
+      } else {
+        text = stmt.getText();
+        if (!text.startsWith('export')) {
+          text = `export ${text}`;
+        }
       }
       lines.push(text);
       lines.push('');
       allExportedNames.push(name);
     }
 
-    const fileName = sourceFile.getBaseName();
+    const fileName = sourceFile.getBaseName().replace(/\.ts$/, '.d.ts');
     extractedFiles.push({
       originalPath: sourceFile.getFilePath(),
       content: lines.join('\n').trimEnd() + '\n',

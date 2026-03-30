@@ -10,8 +10,7 @@ describe('generatePackageJson', () => {
     const pkg = generatePackageJson({ name: '@my-org/api-types' });
     expect(pkg.name).toBe('@my-org/api-types');
     expect(pkg.version).toBe('0.1.0');
-    expect(pkg.main).toBe('./dist/index.js');
-    expect(pkg.types).toBe('./dist/index.d.ts');
+    expect(pkg.types).toBe('./src/index.d.ts');
     expect(pkg.publishConfig.registry).toBe('https://registry.npmjs.org');
   });
 

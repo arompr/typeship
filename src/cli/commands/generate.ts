@@ -7,7 +7,6 @@ import { extract } from '../../core/extractor.js';
 import { emit } from '../../core/emitter.js';
 import {
   generatePackageJson,
-  generateTsConfig,
   getPackageJsonPath,
 } from '../../generator/index.js';
 import { log } from '../logger.js';
@@ -102,21 +101,15 @@ export function makeGenerateCommand(): Command {
         });
         const pkgJsonContent = JSON.stringify(pkgJson, null, 2) + '\n';
 
-        // Generate tsconfig.json
-        const tsConfig = generateTsConfig();
-        const tsConfigContent = JSON.stringify(tsConfig, null, 2) + '\n';
-
         if (!dryRun) {
           mkdirSync(outDir, { recursive: true });
           writeFileSync(pkgJsonPath, pkgJsonContent, 'utf8');
-          writeFileSync(join(outDir, 'tsconfig.json'), tsConfigContent, 'utf8');
         }
 
         // Print summary
         const allFiles = [
           ...emitResult.files,
           { path: pkgJsonPath, content: pkgJsonContent },
-          { path: join(outDir, 'tsconfig.json'), content: tsConfigContent },
         ];
 
         for (const f of allFiles) {

@@ -1,0 +1,12 @@
+{
+  "name": "@test/nested-types",
+  "version": "0.1.0",
+  "description": "TypeScript types published by typeship from @test/nested-types",
+  "types": "./src/index.d.ts",
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  }
+}

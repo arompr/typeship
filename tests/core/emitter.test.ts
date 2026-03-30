@@ -13,6 +13,7 @@ function mockExtraction(fileNames: string[]): ExtractionResult {
       content: `export interface Foo { id: string; }\n`,
     })),
     exportedNames: ['Foo'],
+    diagnostics: [],
   };
 }
 
@@ -28,15 +29,15 @@ describe('emit', () => {
   });
 
   it('writes source files and barrel to outDir/src/', () => {
-    const result = emit(mockExtraction(['user.dto.ts']), { outDir: tmpDir });
+    const result = emit(mockExtraction(['user.dto.d.ts']), { outDir: tmpDir });
     expect(result.files.length).toBe(2); // 1 file + barrel
-    expect(result.files.some((f) => f.path.endsWith('index.ts'))).toBe(true);
-    expect(result.files.some((f) => f.path.endsWith('user.dto.ts'))).toBe(true);
+    expect(result.files.some((f) => f.path.endsWith('index.d.ts'))).toBe(true);
+    expect(result.files.some((f) => f.path.endsWith('user.dto.d.ts'))).toBe(true);
   });
 
   it('barrel contains export for each file', () => {
-    const result = emit(mockExtraction(['user.dto.ts', 'product.dto.ts']), { outDir: tmpDir });
-    const barrel = result.files.find((f) => f.path.endsWith('index.ts'));
+    const result = emit(mockExtraction(['user.dto.d.ts', 'product.dto.d.ts']), { outDir: tmpDir });
+    const barrel = result.files.find((f) => f.path.endsWith('index.d.ts'));
     expect(barrel?.content).toContain("export * from './user.dto.js'");
     expect(barrel?.content).toContain("export * from './product.dto.js'");
   });
