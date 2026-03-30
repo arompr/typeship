@@ -102,6 +102,7 @@ export function makeGenerateCommand(): Command {
           log.error(
             `${extraction.collisions.length} type name collision(s) found. Rename the conflicting types and re-run.`,
           );
+          process.exit(1);
         }
 
         log.info(`Generating package to: ${pc.bold(outDir)}`);
