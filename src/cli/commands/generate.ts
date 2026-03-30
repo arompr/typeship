@@ -69,7 +69,9 @@ export function makeGenerateCommand(): Command {
         }
 
         log.info('Extracting types...');
-        const extraction = extract(scanResults);
+        const extraction = extract(scanResults, {
+          ...(fileConfig.declarationMapping !== undefined && { declarationMapping: fileConfig.declarationMapping }),
+        });
 
         if (extraction.diagnostics.length > 0) {
           for (const d of extraction.diagnostics) {
@@ -82,6 +84,26 @@ export function makeGenerateCommand(): Command {
           process.exit(1);
         }
 
+        if (extraction.warnings.length > 0) {
+          for (const w of extraction.warnings) {
+            log.warn(
+              `Type ${pc.bold(w.typeName)} in ${w.filePath} could not be converted to the requested declaration kind — emitted as-is.`,
+            );
+          }
+        }
+
+        if (extraction.collisions.length > 0) {
+          for (const c of extraction.collisions) {
+            log.error(
+              `Type name collision: ${pc.bold(c.typeName)} is published by ${c.filePaths.length} files — duplicate declarations are not supported:\n` +
+              c.filePaths.map((p) => `  • ${p}`).join('\n'),
+            );
+          }
+          log.error(
+            `${extraction.collisions.length} type name collision(s) found. Rename the conflicting types and re-run.`,
+          );
+        }
+
         log.info(`Generating package to: ${pc.bold(outDir)}`);
 
         if (dryRun) {
@@ -89,7 +111,11 @@ export function makeGenerateCommand(): Command {
         }
 
         // Emit source files
-        const emitResult = emit(extraction, { outDir, dryRun });
+        const emitResult = emit(extraction, {
+          outDir,
+          dryRun,
+          ...(fileConfig.outputGrouping !== undefined && { outputGrouping: fileConfig.outputGrouping }),
+        });
 
         // Generate package.json
         const pkgJsonPath = getPackageJsonPath(outDir);

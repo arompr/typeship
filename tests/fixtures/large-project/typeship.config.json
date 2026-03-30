@@ -1,0 +1,18 @@
+{
+  "packageName": "@test/large-project-types",
+  "outDir": "./generated",
+  "tsConfig": "./tsconfig.json",
+  "outputGrouping": {
+    "users.d.ts": ["**/users/**"],
+    "products.d.ts": ["**/products/**"],
+    "orders.d.ts": ["**/orders/**"],
+    "payments.d.ts": ["**/payments/**"],
+    "inventory.d.ts": ["**/inventory/**"],
+    "notifications.d.ts": ["**/notifications/**"],
+    "shipping.d.ts": ["**/shipping/**"],
+    "reviews.d.ts": ["**/reviews/**"],
+    "discounts.d.ts": ["**/discounts/**"],
+    "analytics.d.ts": ["**/analytics/**"],
+    "shared.d.ts": ["**/shared/**"]
+  }
+}
