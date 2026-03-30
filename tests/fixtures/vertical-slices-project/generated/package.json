@@ -1,0 +1,12 @@
+{
+  "name": "@test/vertical-slices-types",
+  "version": "0.1.0",
+  "description": "TypeScript types published by typeship from @test/vertical-slices-types",
+  "types": "./src/index.d.ts",
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "tsconfig": "./tsconfig.json",
+  "packageName": "@my-company/extra-large-api-types",
+  "version": "0.1.0",
+  "outDir": "generated",
+  "outputGrouping": {
+    "users.d.ts": [
+      "**/users/**"
+    ],
+    "products.d.ts": [
+      "**/products/**"
+    ],
+    "orders.d.ts": [
+      "**/orders/**"
+    ],
+    "payments.d.ts": [
+      "**/payments/**"
+    ],
+    "catalog.d.ts": [
+      "**/catalog/**"
+    ],
+    "notifications.d.ts": [
+      "**/notifications/**"
+    ],
+    "analytics.d.ts": [
+      "**/analytics/**"
+    ]
+  }
+}

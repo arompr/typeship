@@ -1,5 +1,6 @@
 {
   "packageName": "@test/nested-types",
   "outDir": "./generated",
-  "tsConfig": "./tsconfig.json"
+  "tsConfig": "./tsconfig.json",
+  "outputGrouping": "single"
 }

@@ -153,3 +153,177 @@ describe('extract', () => {
     expect(result.diagnostics).toHaveLength(0);
   });
 });
+
+describe('extract – declarationMapping', () => {
+  it('preserves kinds by default', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export interface UserDto { id: string; }
+    `);
+    const result = extract([sr]);
+    expect(result.files[0]?.content).toMatch(/export interface UserDto/);
+  });
+
+  it('mapping "type" converts interface to type alias', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export interface UserDto { id: string; }
+    `);
+    const result = extract([sr], { declarationMapping: 'type' });
+    expect(result.files[0]?.content).toMatch(/export type UserDto\s*=/);
+    expect(result.files[0]?.content).not.toMatch(/export interface/);
+  });
+
+  it('mapping "type" keeps a type alias as-is', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export type UserId = string;
+    `);
+    const result = extract([sr], { declarationMapping: 'type' });
+    expect(result.files[0]?.content).toMatch(/export type UserId = string/);
+  });
+
+  it('mapping "type" converts class to type alias (public members only)', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export class UserDto {
+        id: string;
+        private secret: string;
+        getName(): string { return this.id; }
+      }
+    `);
+    const result = extract([sr], { declarationMapping: 'type' });
+    expect(result.files[0]?.content).toMatch(/export type UserDto\s*=/);
+    expect(result.files[0]?.content).toContain('id');
+    expect(result.files[0]?.content).not.toContain('secret');
+    expect(result.files[0]?.content).not.toMatch(/export declare class/);
+  });
+
+  it('mapping "interface" converts type alias (object type) to interface', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export type UserDto = { id: string; name: string; };
+    `);
+    const result = extract([sr], { declarationMapping: 'interface' });
+    expect(result.files[0]?.content).toMatch(/export interface UserDto/);
+    expect(result.files[0]?.content).not.toMatch(/export type/);
+  });
+
+  it('mapping "interface" keeps interface as-is', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export interface UserDto { id: string; }
+    `);
+    const result = extract([sr], { declarationMapping: 'interface' });
+    expect(result.files[0]?.content).toMatch(/export interface UserDto/);
+  });
+
+  it('mapping "interface" converts class to interface (public members only)', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export class UserDto {
+        id: string;
+        private secret: string;
+      }
+    `);
+    const result = extract([sr], { declarationMapping: 'interface' });
+    expect(result.files[0]?.content).toMatch(/export interface UserDto/);
+    expect(result.files[0]?.content).toContain('id');
+    expect(result.files[0]?.content).not.toContain('secret');
+    expect(result.files[0]?.content).not.toMatch(/declare class/);
+  });
+
+  it('mapping "class" converts interface to declare class', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export interface UserDto { id: string; }
+    `);
+    const result = extract([sr], { declarationMapping: 'class' });
+    expect(result.files[0]?.content).toMatch(/export declare class UserDto/);
+    expect(result.files[0]?.content).not.toMatch(/export interface/);
+  });
+
+  it('mapping "class" converts type alias (object type) to declare class', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export type UserDto = { id: string; name: string; };
+    `);
+    const result = extract([sr], { declarationMapping: 'class' });
+    expect(result.files[0]?.content).toMatch(/export declare class UserDto/);
+  });
+
+  it('mapping "class" keeps a class as-is (as declare class)', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export class UserDto { id: string; }
+    `);
+    const result = extract([sr], { declarationMapping: 'class' });
+    expect(result.files[0]?.content).toMatch(/export declare class UserDto/);
+  });
+
+  it('always preserves enums regardless of mapping', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export enum Status { Active = 'active', Inactive = 'inactive' }
+    `);
+    for (const mapping of ['type', 'interface', 'class'] as const) {
+      const result = extract([sr], { declarationMapping: mapping });
+      expect(result.files[0]?.content).toMatch(/export enum Status/);
+    }
+  });
+
+  it('mapping "interface" falls back for non-object type alias and adds a warning', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export type UserId = string;
+    `);
+    const result = extract([sr], { declarationMapping: 'interface' });
+    // Should still emit something (fallback preserve)
+    expect(result.files[0]?.content).toContain('UserId');
+    // Warning is added for non-convertible type (not a fatal diagnostic)
+    expect(result.warnings.some((w) => w.typeName === 'UserId')).toBe(true);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+});
+
+describe('extract – collision detection', () => {
+  it('reports no collisions when all type names are unique', () => {
+    const sr1 = buildScanResult(`/** @publish */ export interface UserDto { id: string; }`, 'user.ts');
+    const sr2 = buildScanResult(`/** @publish */ export interface OrderDto { id: string; }`, 'order.ts');
+    const result = extract([sr1, sr2]);
+    expect(result.collisions).toHaveLength(0);
+  });
+
+  it('detects a collision when the same name is published in two files', () => {
+    const sr1 = buildScanResult(`/** @publish */ export interface UserDto { id: string; }`, 'user.ts');
+    const sr2 = buildScanResult(`/** @publish */ export interface UserDto { name: string; }`, 'admin.ts');
+    const result = extract([sr1, sr2]);
+    expect(result.collisions).toHaveLength(1);
+    expect(result.collisions[0]?.typeName).toBe('UserDto');
+    expect(result.collisions[0]?.filePaths).toHaveLength(2);
+  });
+
+  it('detects multiple collisions independently', () => {
+    const sr1 = buildScanResult(
+      `/** @publish */ export interface Foo { a: string; }\n/** @publish */ export interface Bar { x: number; }`,
+      'a.ts',
+    );
+    const sr2 = buildScanResult(
+      `/** @publish */ export interface Foo { b: string; }\n/** @publish */ export interface Bar { y: number; }`,
+      'b.ts',
+    );
+    const result = extract([sr1, sr2]);
+    expect(result.collisions).toHaveLength(2);
+    const names = result.collisions.map((c) => c.typeName).sort();
+    expect(names).toEqual(['Bar', 'Foo']);
+  });
+
+  it('includes all conflicting file paths in the collision entry', () => {
+    const sr1 = buildScanResult(`/** @publish */ export interface Shared { id: string; }`, 'a.ts');
+    const sr2 = buildScanResult(`/** @publish */ export interface Shared { id: string; }`, 'b.ts');
+    const sr3 = buildScanResult(`/** @publish */ export interface Shared { id: string; }`, 'c.ts');
+    const result = extract([sr1, sr2, sr3]);
+    expect(result.collisions).toHaveLength(1);
+    expect(result.collisions[0]?.filePaths).toHaveLength(3);
+  });
+});

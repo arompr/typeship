@@ -27,12 +27,33 @@ export interface ExtractionDiagnostic {
   filePath: string;
 }
 
+/** Reported when two or more published types share the same name across different source files. */
+export interface CollisionDiagnostic {
+  /** The duplicated type name. */
+  typeName: string;
+  /** Absolute paths of every source file that publishes this name. */
+  filePaths: string[];
+}
+
 export interface ExtractionResult {
   files: ExtractedFile[];
   /** All exported names, collected for barrel generation. */
   exportedNames: string[];
-  /** Types referenced by published types that are not themselves marked @publish. */
+  /** Types referenced by published types that are not themselves marked @publish. Fatal — generation will be blocked. */
   diagnostics: ExtractionDiagnostic[];
+  /** Non-fatal warnings, e.g. declarations that could not be converted to the requested kind and fell back to preserve. */
+  warnings: ExtractionDiagnostic[];
+  /** Published type names that appear in more than one source file. Causes duplicate declarations when files are merged. */
+  collisions: CollisionDiagnostic[];
+}
+
+/** Options passed to {@link extract}. */
+export interface ExtractOptions {
+  /**
+   * Controls what TypeScript construct kind each declaration is emitted as.
+   * Defaults to `"preserve"`. Enums are always preserved regardless of this setting.
+   */
+  declarationMapping?: 'preserve' | 'type' | 'interface' | 'class';
 }
 
 type PublishableDeclaration =
@@ -213,13 +234,199 @@ function toAmbientClassText(decl: ClassDeclaration): string {
 }
 
 /**
+ * Collects the public instance members of a class as `name?: type` property strings,
+ * used when converting a class to a type alias or interface.
+ */
+function classToMemberLines(decl: ClassDeclaration): string[] {
+  const lines: string[] = [];
+  for (const prop of decl.getProperties()) {
+    const mods = prop.getModifiers().map((m) => m.getText());
+    if (mods.includes('private') || mods.includes('protected') || mods.includes('static')) continue;
+    const optional = prop.hasQuestionToken() ? '?' : '';
+    const typeNode = prop.getTypeNode();
+    const typeStr = typeNode ? `: ${typeNode.getText()}` : '';
+    lines.push(`  ${prop.getName()}${optional}${typeStr};`);
+  }
+  for (const method of decl.getMethods()) {
+    const mods = method.getModifiers().map((m) => m.getText());
+    if (mods.includes('private') || mods.includes('protected') || mods.includes('static')) continue;
+    const methodTypeParams = method.getTypeParameters();
+    const methodTypeParamsStr = methodTypeParams.length > 0
+      ? `<${methodTypeParams.map((p) => p.getText()).join(', ')}>`
+      : '';
+    const params = method.getParameters().map((p) => p.getText()).join(', ');
+    const returnTypeNode = method.getReturnTypeNode();
+    const returnStr = returnTypeNode ? `: ${returnTypeNode.getText()}` : '';
+    lines.push(`  ${method.getName()}${methodTypeParamsStr}(${params})${returnStr};`);
+  }
+  return lines;
+}
+
+/**
+ * Returns the object-literal body text of a type alias if its RHS is a TypeLiteral,
+ * otherwise returns `null` (cannot be converted).
+ */
+function typeAliasObjectBody(decl: TypeAliasDeclaration): string | null {
+  const typeNode = decl.getTypeNode();
+  if (!typeNode?.isKind(SyntaxKind.TypeLiteral)) return null;
+  return typeNode.getText(); // e.g. "{ id: string; name: string; }"
+}
+
+/** Converts any publishable declaration to a type alias text, or `null` if not convertible. */
+function toTypeAliasText(
+  decl: Exclude<PublishableDeclaration, EnumDeclaration>,
+): string | null {
+  const name = decl.getName() ?? '';
+  const typeParams = decl.getTypeParameters();
+  const typeParamsStr = typeParams.length > 0
+    ? `<${typeParams.map((p) => p.getText()).join(', ')}>`
+    : '';
+
+  if (decl.isKind(SyntaxKind.TypeAliasDeclaration)) {
+    // Already a type alias — emit as-is (with export prefix)
+    const text = decl.getText();
+    return text.startsWith('export') ? text : `export ${text}`;
+  }
+
+  if (decl.isKind(SyntaxKind.InterfaceDeclaration)) {
+    const body = decl.getText().replace(/^export\s+/, '').replace(/^interface\s+\S+(\s*<[^>]*>)?\s*/, '');
+    return `export type ${name}${typeParamsStr} = ${body.trim()}`;
+  }
+
+  if (decl.isKind(SyntaxKind.ClassDeclaration)) {
+    const memberLines = classToMemberLines(decl);
+    const body = memberLines.length > 0 ? `{\n${memberLines.join('\n')}\n}` : '{}';
+    return `export type ${name}${typeParamsStr} = ${body}`;
+  }
+
+  return null;
+}
+
+/** Converts any publishable declaration to an interface text, or `null` if not convertible. */
+function toInterfaceText(
+  decl: Exclude<PublishableDeclaration, EnumDeclaration>,
+): string | null {
+  const name = decl.getName() ?? '';
+  const typeParams = decl.getTypeParameters();
+  const typeParamsStr = typeParams.length > 0
+    ? `<${typeParams.map((p) => p.getText()).join(', ')}>`
+    : '';
+
+  if (decl.isKind(SyntaxKind.InterfaceDeclaration)) {
+    const text = decl.getText();
+    return text.startsWith('export') ? text : `export ${text}`;
+  }
+
+  if (decl.isKind(SyntaxKind.TypeAliasDeclaration)) {
+    const body = typeAliasObjectBody(decl);
+    if (!body) return null;
+    return `export interface ${name}${typeParamsStr} ${body}`;
+  }
+
+  if (decl.isKind(SyntaxKind.ClassDeclaration)) {
+    const heritageClauses = decl.getHeritageClauses();
+    const heritageStr = heritageClauses.length > 0
+      ? ` ${heritageClauses.map((h) => h.getText()).join(' ')}`
+      : '';
+    const memberLines = classToMemberLines(decl);
+    const body = memberLines.length > 0 ? `{\n${memberLines.join('\n')}\n}` : '{}';
+    return `export interface ${name}${typeParamsStr}${heritageStr} ${body}`;
+  }
+
+  return null;
+}
+
+/** Converts any publishable declaration to a declare class text, or `null` if not convertible. */
+function toDeclareClassText(
+  decl: Exclude<PublishableDeclaration, EnumDeclaration>,
+): string | null {
+  if (decl.isKind(SyntaxKind.ClassDeclaration)) {
+    return toAmbientClassText(decl);
+  }
+
+  const name = decl.getName() ?? '';
+  const typeParams = decl.getTypeParameters();
+  const typeParamsStr = typeParams.length > 0
+    ? `<${typeParams.map((p) => p.getText()).join(', ')}>`
+    : '';
+
+  if (decl.isKind(SyntaxKind.InterfaceDeclaration)) {
+    const members = decl.getMembers().map((m) => `  ${m.getText()}`);
+    const body = members.length > 0 ? `\n${members.join('\n')}\n` : '';
+    return `export declare class ${name}${typeParamsStr} {${body}}`;
+  }
+
+  if (decl.isKind(SyntaxKind.TypeAliasDeclaration)) {
+    const body = typeAliasObjectBody(decl);
+    if (!body) return null;
+    // Convert "{ id: string; }" → property member lines
+    const innerText = body.slice(1, -1).trim();
+    const memberLines = innerText
+      ? innerText.split(';').map((s) => s.trim()).filter(Boolean).map((s) => `  ${s};`)
+      : [];
+    const classBody = memberLines.length > 0 ? `\n${memberLines.join('\n')}\n` : '';
+    return `export declare class ${name}${typeParamsStr} {${classBody}}`;
+  }
+
+  return null;
+}
+
+/**
+ * Applies `declarationMapping` to a single publishable declaration.
+ * Returns `{ text, warned }` where `warned` is true if the conversion
+ * was not possible and the declaration was emitted as-is.
+ */
+function applyDeclarationMapping(
+  stmt: PublishableDeclaration,
+  mapping: 'preserve' | 'type' | 'interface' | 'class',
+): { text: string; warned: boolean } {
+  // Enums are always preserved as-is.
+  if (stmt.isKind(SyntaxKind.EnumDeclaration)) {
+    const raw = stmt.getText();
+    return { text: raw.startsWith('export') ? raw : `export ${raw}`, warned: false };
+  }
+
+  // Classes in preserve mode still need ambient-class conversion (strip bodies).
+  if (mapping === 'preserve') {
+    if (stmt.isKind(SyntaxKind.ClassDeclaration)) {
+      return { text: toAmbientClassText(stmt), warned: false };
+    }
+    const raw = stmt.getText();
+    return { text: raw.startsWith('export') ? raw : `export ${raw}`, warned: false };
+  }
+
+  const declForConversion = stmt as Exclude<PublishableDeclaration, EnumDeclaration>;
+
+  let converted: string | null = null;
+  if (mapping === 'type') {
+    converted = toTypeAliasText(declForConversion);
+  } else if (mapping === 'interface') {
+    converted = toInterfaceText(declForConversion);
+  } else if (mapping === 'class') {
+    converted = toDeclareClassText(declForConversion);
+  }
+
+  if (converted !== null) {
+    return { text: converted, warned: false };
+  }
+
+  // Fallback — emit as-is with a warning
+  const raw = stmt.getText();
+  return { text: raw.startsWith('export') ? raw : `export ${raw}`, warned: true };
+}
+
+/**
  * Extracts publishable declarations from scan results into standalone
  * .d.ts declaration files ready to be written to the output directory.
  */
-export function extract(scanResults: ScanResult[]): ExtractionResult {
+export function extract(scanResults: ScanResult[], options: ExtractOptions = {}): ExtractionResult {
+  const mapping = options.declarationMapping ?? 'preserve';
   const extractedFiles: ExtractedFile[] = [];
   const allExportedNames: string[] = [];
   const allDiagnostics: ExtractionDiagnostic[] = [];
+  const allWarnings: ExtractionDiagnostic[] = [];
+  /** Tracks every source file that publishes a given name, for collision detection. */
+  const nameToFilePaths = new Map<string, string[]>();
 
   for (const { sourceFile, nodes } of scanResults) {
     const needed = collectLocalDependencies(nodes, sourceFile);
@@ -249,24 +456,31 @@ export function extract(scanResults: ScanResult[]): ExtractionResult {
 
     if (lines.length > 2) lines.push('');
 
-    // Emit the needed declarations
+    // Emit the needed declarations with optional kind mapping
     for (const stmt of sourceFile.getStatements()) {
       if (!isPublishableDeclaration(stmt)) continue;
       const name = getDeclarationName(stmt);
       if (!name || !needed.has(name)) continue;
 
-      let text: string;
-      if (stmt.isKind(SyntaxKind.ClassDeclaration)) {
-        text = toAmbientClassText(stmt);
-      } else {
-        text = stmt.getText();
-        if (!text.startsWith('export')) {
-          text = `export ${text}`;
-        }
+      const { text, warned } = applyDeclarationMapping(stmt, mapping);
+      if (warned) {
+        allWarnings.push({
+          typeName: name,
+          filePath: sourceFile.getFilePath(),
+        });
       }
       lines.push(text);
       lines.push('');
       allExportedNames.push(name);
+
+      // Track which files publish each name for collision detection
+      const filePath = sourceFile.getFilePath();
+      const existing = nameToFilePaths.get(name);
+      if (existing) {
+        existing.push(filePath);
+      } else {
+        nameToFilePaths.set(name, [filePath]);
+      }
     }
 
     const fileName = sourceFile.getBaseName().replace(/\.ts$/, '.d.ts');
@@ -277,5 +491,12 @@ export function extract(scanResults: ScanResult[]): ExtractionResult {
     });
   }
 
-  return { files: extractedFiles, exportedNames: allExportedNames, diagnostics: allDiagnostics };
+  const collisions: CollisionDiagnostic[] = [];
+  for (const [typeName, filePaths] of nameToFilePaths) {
+    if (filePaths.length > 1) {
+      collisions.push({ typeName, filePaths });
+    }
+  }
+
+  return { files: extractedFiles, exportedNames: allExportedNames, diagnostics: allDiagnostics, warnings: allWarnings, collisions };
 }

@@ -1,0 +1,11 @@
+{
+  "packageName": "@test/vertical-slices-types",
+  "outDir": "./generated",
+  "tsConfig": "./tsconfig.json",
+  "outputGrouping": {
+    "users.d.ts": ["**/users/**"],
+    "orders.d.ts": ["**/orders/**"],
+    "products.d.ts": ["**/products/**"],
+    "shared.d.ts": ["**/shared/**"]
+  }
+}
