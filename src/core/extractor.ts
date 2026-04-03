@@ -199,13 +199,26 @@ function toAmbientClassText(decl: ClassDeclaration): string {
 
   const members: string[] = [];
 
+  // Promote constructor parameter properties to class properties; constructors are not emitted.
   for (const ctor of decl.getConstructors()) {
-    const params = ctor.getParameters().map((p) => p.getText()).join(', ');
-    members.push(`  constructor(${params});`);
+    for (const param of ctor.getParameters()) {
+      if (!param.isParameterProperty()) continue;
+      const modifiers = param.getModifiers()
+        .filter((m) => !m.isKind(SyntaxKind.Decorator))
+        .map((m) => m.getText())
+        .filter((m) => m !== 'declare')
+        .join(' ');
+      const modStr = modifiers ? `${modifiers} ` : '';
+      const optional = param.hasQuestionToken() ? '?' : '';
+      const typeNode = param.getTypeNode();
+      const typeStr = typeNode ? `: ${typeNode.getText()}` : '';
+      members.push(`  ${modStr}${param.getName()}${optional}${typeStr};`);
+    }
   }
 
   for (const prop of decl.getProperties()) {
     const modifiers = prop.getModifiers()
+      .filter((m) => !m.isKind(SyntaxKind.Decorator))
       .map((m) => m.getText())
       .filter((m) => m !== 'declare')
       .join(' ');
