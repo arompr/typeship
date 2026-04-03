@@ -107,7 +107,7 @@ Options:
 
 ## Config File
 
-Create `typeship.config.json` in your project root to avoid repeating CLI flags:
+Create `typeship.config.json` (or `.typeshiprc.json`) in your project root to avoid repeating CLI flags:
 
 ```json
 {
@@ -115,11 +115,37 @@ Create `typeship.config.json` in your project root to avoid repeating CLI flags:
   "outDir": "./generated",
   "registry": "https://npm.pkg.github.com",
   "bump": "patch",
-  "tsConfig": "./tsconfig.json"
+  "tsConfig": "./tsconfig.json",
+  "declarationMapping": "preserve",
+  "outputGrouping": "per-file"
 }
 ```
 
 CLI flags always override config file values.
+
+### Config Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `packageName` | `string` | — | **Required.** Package name for the generated package (e.g. `@my-org/api-types`) |
+| `outDir` | `string` | `./generated` | Output directory for the generated package |
+| `registry` | `string` | `https://registry.npmjs.org` | npm registry URL |
+| `bump` | `patch \| minor \| major` | — | Semver bump to apply on each generation |
+| `tsConfig` | `string` | `tsconfig.json` | Path to the project's `tsconfig.json` to scan |
+| `declarationMapping` | `preserve \| type \| interface \| class` | `preserve` | Normalise all exported declarations to a single TypeScript construct. `preserve` keeps each declaration in its original form; other values convert interfaces, types, and classes where possible (enums are always preserved) |
+| `outputGrouping` | `per-file \| single \| Record<string, string[]>` | `per-file` | Controls how declarations are grouped into output files. `per-file` mirrors the source layout; `single` merges everything into one `index.d.ts`; a record maps output filenames to arrays of minimatch glob patterns matched against source paths |
+
+#### `outputGrouping` example
+
+```json
+{
+  "packageName": "@my-org/api-types",
+  "outputGrouping": {
+    "users.d.ts":  ["**/users/**"],
+    "orders.d.ts": ["**/orders/**"]
+  }
+}
+```
 
 ---
 

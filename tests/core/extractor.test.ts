@@ -286,6 +286,85 @@ describe('extract – declarationMapping', () => {
   });
 });
 
+describe('extract – decorators and constructors', () => {
+  it('strips property decorators from declare class output', () => {
+    const sr = buildScanResult(`
+      function IsString() { return () => {}; }
+      function IsNotEmpty() { return () => {}; }
+
+      /** @publish */
+      export class SyncPlayerCommandPayload {
+        @IsString()
+        @IsNotEmpty()
+        token!: string;
+      }
+    `);
+    const result = extract([sr]);
+    const content = result.files[0]?.content ?? '';
+    expect(content).toMatch(/export declare class SyncPlayerCommandPayload/);
+    expect(content).toContain('token');
+    expect(content).not.toMatch(/@IsString/);
+    expect(content).not.toMatch(/@IsNotEmpty/);
+  });
+
+  it('does not emit constructors in declare class output', () => {
+    const sr = buildScanResult(`
+      interface WsCommand { type: string; }
+
+      /** @publish */
+      export class SyncPlayerCommand implements WsCommand {
+        readonly type = 'SYNC_PLAYER';
+        constructor(public readonly payload: string) {
+          this.payload = payload;
+        }
+      }
+    `);
+    const result = extract([sr]);
+    const content = result.files[0]?.content ?? '';
+    expect(content).toMatch(/export declare class SyncPlayerCommand/);
+    expect(content).not.toMatch(/constructor/);
+  });
+
+  it('promotes constructor parameter properties to class properties in declare class output', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export class SyncPlayerCommand {
+        readonly type = 'SYNC_PLAYER';
+        constructor(public readonly payload: string) {}
+      }
+    `);
+    const result = extract([sr]);
+    const content = result.files[0]?.content ?? '';
+    expect(content).toContain('payload');
+    expect(content).toMatch(/readonly payload: string/);
+    expect(content).not.toMatch(/constructor/);
+  });
+
+  it('strips decorators and promotes constructor parameter properties together', () => {
+    const sr = buildScanResult(`
+      function IsString() { return () => {}; }
+
+      /** @publish */
+      export class CommandPayload {
+        @IsString()
+        token!: string;
+      }
+
+      /** @publish */
+      export class SyncCommand {
+        readonly type = 'SYNC';
+        constructor(public readonly payload: CommandPayload) {}
+      }
+    `);
+    const result = extract([sr]);
+    const content = result.files[0]?.content ?? '';
+    expect(content).not.toMatch(/@IsString/);
+    expect(content).not.toMatch(/constructor/);
+    expect(content).toContain('token');
+    expect(content).toMatch(/readonly payload: CommandPayload/);
+  });
+});
+
 describe('extract – collision detection', () => {
   it('reports no collisions when all type names are unique', () => {
     const sr1 = buildScanResult(`/** @publish */ export interface UserDto { id: string; }`, 'user.ts');

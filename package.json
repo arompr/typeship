@@ -1,6 +1,6 @@
 {
   "name": "@arompr/typeship",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Mark TypeScript types as publishable and automatically extract, package, and publish them.",
   "keywords": [
     "typescript",
