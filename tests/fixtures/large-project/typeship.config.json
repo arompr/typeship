@@ -2,6 +2,7 @@
   "packageName": "@test/large-project-types",
   "outDir": "./generated",
   "tsConfig": "./tsconfig.json",
+  "declarationMapping": "type",
   "outputGrouping": {
     "users.d.ts": ["**/users/**"],
     "products.d.ts": ["**/products/**"],

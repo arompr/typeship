@@ -275,16 +275,6 @@ function classToMemberLines(decl: ClassDeclaration): string[] {
   return lines;
 }
 
-/**
- * Returns the object-literal body text of a type alias if its RHS is a TypeLiteral,
- * otherwise returns `null` (cannot be converted).
- */
-function typeAliasObjectBody(decl: TypeAliasDeclaration): string | null {
-  const typeNode = decl.getTypeNode();
-  if (!typeNode?.isKind(SyntaxKind.TypeLiteral)) return null;
-  return typeNode.getText(); // e.g. "{ id: string; name: string; }"
-}
-
 /** Converts any publishable declaration to a type alias text, or `null` if not convertible. */
 function toTypeAliasText(
   decl: Exclude<PublishableDeclaration, EnumDeclaration>,
@@ -302,14 +292,24 @@ function toTypeAliasText(
   }
 
   if (decl.isKind(SyntaxKind.InterfaceDeclaration)) {
-    const body = decl.getText().replace(/^export\s+/, '').replace(/^interface\s+\S+(\s*<[^>]*>)?\s*/, '');
-    return `export type ${name}${typeParamsStr} = ${body.trim()}`;
+    // Use ts-morph API to avoid fragile regex; express extends as intersection types
+    const extendsTypes = decl.getHeritageClauses()
+      .flatMap((h) => h.getTypeNodes().map((t) => t.getText()));
+    const members = decl.getMembers().map((m) => `  ${m.getText()}`);
+    const ownBody = members.length > 0 ? `{\n${members.join('\n')}\n}` : '{}';
+    const rhs = extendsTypes.length > 0 ? `${extendsTypes.join(' & ')} & ${ownBody}` : ownBody;
+    return `export type ${name}${typeParamsStr} = ${rhs}`;
   }
 
   if (decl.isKind(SyntaxKind.ClassDeclaration)) {
+    // Only `extends` (not `implements`) carries inherited members worth intersecting
+    const extendsTypes = decl.getHeritageClauses()
+      .filter((h) => h.getToken() === SyntaxKind.ExtendsKeyword)
+      .flatMap((h) => h.getTypeNodes().map((t) => t.getText()));
     const memberLines = classToMemberLines(decl);
-    const body = memberLines.length > 0 ? `{\n${memberLines.join('\n')}\n}` : '{}';
-    return `export type ${name}${typeParamsStr} = ${body}`;
+    const ownBody = memberLines.length > 0 ? `{\n${memberLines.join('\n')}\n}` : '{}';
+    const rhs = extendsTypes.length > 0 ? `${extendsTypes.join(' & ')} & ${ownBody}` : ownBody;
+    return `export type ${name}${typeParamsStr} = ${rhs}`;
   }
 
   return null;
@@ -331,16 +331,36 @@ function toInterfaceText(
   }
 
   if (decl.isKind(SyntaxKind.TypeAliasDeclaration)) {
-    const body = typeAliasObjectBody(decl);
-    if (!body) return null;
-    return `export interface ${name}${typeParamsStr} ${body}`;
+    const typeNode = decl.getTypeNode();
+    if (!typeNode) return null;
+
+    if (typeNode.isKind(SyntaxKind.TypeLiteral)) {
+      return `export interface ${name}${typeParamsStr} ${typeNode.getText()}`;
+    }
+
+    if (typeNode.isKind(SyntaxKind.IntersectionType)) {
+      const namedTypes: string[] = [];
+      const memberLines: string[] = [];
+      for (const part of typeNode.getTypeNodes()) {
+        if (part.isKind(SyntaxKind.TypeLiteral)) {
+          memberLines.push(...part.getMembers().map((m) => `  ${m.getText()}`));
+        } else {
+          namedTypes.push(part.getText());
+        }
+      }
+      const heritageStr = namedTypes.length > 0 ? ` extends ${namedTypes.join(', ')}` : '';
+      const body = memberLines.length > 0 ? `{\n${memberLines.join('\n')}\n}` : '{}';
+      return `export interface ${name}${typeParamsStr}${heritageStr} ${body}`;
+    }
+
+    return null;
   }
 
   if (decl.isKind(SyntaxKind.ClassDeclaration)) {
-    const heritageClauses = decl.getHeritageClauses();
-    const heritageStr = heritageClauses.length > 0
-      ? ` ${heritageClauses.map((h) => h.getText()).join(' ')}`
-      : '';
+    // Flatten both `extends` and `implements` into interface `extends` (interfaces have no `implements`)
+    const allBaseTypes = decl.getHeritageClauses()
+      .flatMap((h) => h.getTypeNodes().map((t) => t.getText()));
+    const heritageStr = allBaseTypes.length > 0 ? ` extends ${allBaseTypes.join(', ')}` : '';
     const memberLines = classToMemberLines(decl);
     const body = memberLines.length > 0 ? `{\n${memberLines.join('\n')}\n}` : '{}';
     return `export interface ${name}${typeParamsStr}${heritageStr} ${body}`;
@@ -364,21 +384,45 @@ function toDeclareClassText(
     : '';
 
   if (decl.isKind(SyntaxKind.InterfaceDeclaration)) {
+    // Interface `extends` becomes `implements` on the class (all are interface-shaped)
+    const implementsTypes = decl.getHeritageClauses()
+      .flatMap((h) => h.getTypeNodes().map((t) => t.getText()));
+    const implementsStr = implementsTypes.length > 0 ? ` implements ${implementsTypes.join(', ')}` : '';
     const members = decl.getMembers().map((m) => `  ${m.getText()}`);
     const body = members.length > 0 ? `\n${members.join('\n')}\n` : '';
-    return `export declare class ${name}${typeParamsStr} {${body}}`;
+    return `export declare class ${name}${typeParamsStr}${implementsStr} {${body}}`;
   }
 
   if (decl.isKind(SyntaxKind.TypeAliasDeclaration)) {
-    const body = typeAliasObjectBody(decl);
-    if (!body) return null;
-    // Convert "{ id: string; }" → property member lines
-    const innerText = body.slice(1, -1).trim();
-    const memberLines = innerText
-      ? innerText.split(';').map((s) => s.trim()).filter(Boolean).map((s) => `  ${s};`)
-      : [];
-    const classBody = memberLines.length > 0 ? `\n${memberLines.join('\n')}\n` : '';
-    return `export declare class ${name}${typeParamsStr} {${classBody}}`;
+    const typeNode = decl.getTypeNode();
+    if (!typeNode) return null;
+
+    if (typeNode.isKind(SyntaxKind.TypeLiteral)) {
+      const body = typeNode.getText();
+      const innerText = body.slice(1, -1).trim();
+      const memberLines = innerText
+        ? innerText.split(';').map((s) => s.trim()).filter(Boolean).map((s) => `  ${s};`)
+        : [];
+      const classBody = memberLines.length > 0 ? `\n${memberLines.join('\n')}\n` : '';
+      return `export declare class ${name}${typeParamsStr} {${classBody}}`;
+    }
+
+    if (typeNode.isKind(SyntaxKind.IntersectionType)) {
+      const namedTypes: string[] = [];
+      const memberLines: string[] = [];
+      for (const part of typeNode.getTypeNodes()) {
+        if (part.isKind(SyntaxKind.TypeLiteral)) {
+          memberLines.push(...part.getMembers().map((m) => `  ${m.getText()}`));
+        } else {
+          namedTypes.push(part.getText());
+        }
+      }
+      const implementsStr = namedTypes.length > 0 ? ` implements ${namedTypes.join(', ')}` : '';
+      const classBody = memberLines.length > 0 ? `\n${memberLines.join('\n')}\n` : '';
+      return `export declare class ${name}${typeParamsStr}${implementsStr} {${classBody}}`;
+    }
+
+    return null;
   }
 
   return null;
