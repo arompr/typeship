@@ -1,6 +1,5 @@
 // Markers
 export { Publish, isPublished } from './markers/index.js';
-export type {} from './markers/index.js';
 
 // Core pipeline
 export { scan, extract, emit } from './core/index.js';
