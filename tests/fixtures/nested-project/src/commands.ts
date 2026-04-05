@@ -5,6 +5,7 @@ import { IsString, IsNotEmpty } from 'class-validator';
  * Tests that decorators are stripped and constructors are not emitted.
  */
 export class SyncPlayerCommandPayload {
+  /** Bearer token used to authenticate the command. */
   @IsString()
   @IsNotEmpty()
   token!: string;

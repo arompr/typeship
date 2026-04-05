@@ -5,7 +5,10 @@ export enum UserRole {
   Guest = 'guest',
 }
 
-/** @publish */
+/**
+ * @publish
+ * Lifecycle states an order passes through from placement to delivery.
+ */
 export enum OrderStatus {
   Pending = 'pending',
   Shipped = 'shipped',

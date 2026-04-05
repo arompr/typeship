@@ -13,9 +13,14 @@ export type UserEmail = string;
  *   - cross-file @publish types (UserRole from enums.ts, Address from address.ts)
  */
 export interface UserDto {
+  /** Unique user identifier. */
   id: UserId;
+  /** Verified email address. */
   email: UserEmail;
+  /** Access role assigned to this user. */
   role: UserRole;
+  /** Primary mailing address. */
   address: Address;
+  /** Timestamp of account creation (UTC). */
   createdAt: Date;
 }

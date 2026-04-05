@@ -3,11 +3,22 @@
 import type { UserRole } from './enums.js';
 import type { Address } from './address.js';
 
+/**
+ * @publish
+ * A class-based DTO — tests that nested type extraction works for classes,
+ * not just interfaces and type aliases.
+ */
 export declare class CreateUserDto {
+  /** Display name for the new user. */
   name: string;
+  /** Contact email address. */
   email: string;
+  /** Initial access role. */
   role: UserRole;
+  /** Billing or shipping address. */
   address: Address;
+  /** Returns the user's name and email formatted for display. */
   getDisplayName(): string;
+  /** Returns true when the user has the Admin role. */
   isAdmin(): boolean;
 }

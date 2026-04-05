@@ -2,12 +2,23 @@
 
 import type { Pagination } from './shared.js';
 
+/**
+ * @publish
+ * Payload for placing a new order.
+ */
 export interface CreateOrderDto {
+  /** ID of the user placing the order. */
   userId: string;
+  /** List of products and quantities. */
   lines: Array<{ productId: string; quantity: number }>;
+  /** Initial status override; defaults to Pending when omitted. */
   status?: OrderStatus;
 }
 
+/**
+ * @publish
+ * Lifecycle states an order passes through from placement to delivery.
+ */
 export enum OrderStatus {
   Pending = 'pending',
   Confirmed = 'confirmed',
@@ -16,21 +27,39 @@ export enum OrderStatus {
   Cancelled = 'cancelled',
 }
 
+/**
+ * @publish
+ * A single line item within an order.
+ */
 export interface OrderLineDto {
+  /** ID of the ordered product. */
   productId: string;
+  /** Number of units ordered. */
   quantity: number;
+  /** Price per unit at time of order, in the account's base currency. */
   unitPrice: number;
 }
 
+/**
+ * @publish
+ * Full order representation returned from the API.
+ */
 export interface OrderDto {
+  /** Unique order identifier. */
   id: string;
+  /** ID of the user who placed the order. */
   userId: string;
+  /** Current lifecycle status. */
   status: OrderStatus;
+  /** Ordered line items. */
   lines: OrderLineDto[];
+  /** Sum of all line items (quantity × unitPrice). */
   totalAmount: number;
+  /** Timestamp when the order was created (UTC). */
   createdAt: Date;
 }
 
+/** @publish */
 export interface OrderListResponse {
   items: OrderDto[];
   pagination: Pagination;
