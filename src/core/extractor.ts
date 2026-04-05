@@ -180,6 +180,17 @@ function collectCrossFileDiagnostics(
 }
 
 /**
+ * Returns the JSDoc comment blocks attached to `node`, with each block prefixed
+ * by `indent` and the whole result ending with a newline.
+ * Returns an empty string when no JSDoc is present.
+ */
+function jsDocText(node: Node, indent = ''): string {
+  const jsDocs = (node as any).getJsDocs?.() as Array<{ getText(): string }> | undefined;
+  if (!jsDocs || jsDocs.length === 0) return '';
+  return jsDocs.map((doc) => `${indent}${doc.getText()}`).join('\n') + '\n';
+}
+
+/**
  * Produces an ambient class declaration suitable for a .d.ts file:
  * property initializers and method bodies are stripped; only type
  * signatures are kept.
@@ -225,8 +236,8 @@ function toAmbientClassText(decl: ClassDeclaration): string {
     const modStr = modifiers ? `${modifiers} ` : '';
     const optional = prop.hasQuestionToken() ? '?' : '';
     const typeNode = prop.getTypeNode();
-    const typeStr = typeNode ? `: ${typeNode.getText()}` : '';
-    members.push(`  ${modStr}${prop.getName()}${optional}${typeStr};`);
+    const typeStr = typeNode ? `: ${typeNode.getText()}` : `: ${prop.getType().getText()}`;
+    members.push(`${jsDocText(prop, '  ')}  ${modStr}${prop.getName()}${optional}${typeStr};`);
   }
 
   for (const method of decl.getMethods()) {
@@ -239,11 +250,11 @@ function toAmbientClassText(decl: ClassDeclaration): string {
     const params = method.getParameters().map((p) => p.getText()).join(', ');
     const returnTypeNode = method.getReturnTypeNode();
     const returnStr = returnTypeNode ? `: ${returnTypeNode.getText()}` : '';
-    members.push(`  ${modStr}${method.getName()}${methodTypeParamsStr}(${params})${returnStr};`);
+    members.push(`${jsDocText(method, '  ')}  ${modStr}${method.getName()}${methodTypeParamsStr}(${params})${returnStr};`);
   }
 
   const body = members.length > 0 ? `\n${members.join('\n')}\n` : '';
-  return `export declare class ${name}${typeParamsStr}${heritageStr} {${body}}`;
+  return `${jsDocText(decl)}export declare class ${name}${typeParamsStr}${heritageStr} {${body}}`;
 }
 
 /**
@@ -257,8 +268,8 @@ function classToMemberLines(decl: ClassDeclaration): string[] {
     if (mods.includes('private') || mods.includes('protected') || mods.includes('static')) continue;
     const optional = prop.hasQuestionToken() ? '?' : '';
     const typeNode = prop.getTypeNode();
-    const typeStr = typeNode ? `: ${typeNode.getText()}` : '';
-    lines.push(`  ${prop.getName()}${optional}${typeStr};`);
+    const typeStr = typeNode ? `: ${typeNode.getText()}` : `: ${prop.getType().getText()}`;
+    lines.push(`${jsDocText(prop, '  ')}  ${prop.getName()}${optional}${typeStr};`);
   }
   for (const method of decl.getMethods()) {
     const mods = method.getModifiers().map((m) => m.getText());
@@ -270,7 +281,7 @@ function classToMemberLines(decl: ClassDeclaration): string[] {
     const params = method.getParameters().map((p) => p.getText()).join(', ');
     const returnTypeNode = method.getReturnTypeNode();
     const returnStr = returnTypeNode ? `: ${returnTypeNode.getText()}` : '';
-    lines.push(`  ${method.getName()}${methodTypeParamsStr}(${params})${returnStr};`);
+    lines.push(`${jsDocText(method, '  ')}  ${method.getName()}${methodTypeParamsStr}(${params})${returnStr};`);
   }
   return lines;
 }
@@ -288,17 +299,18 @@ function toTypeAliasText(
   if (decl.isKind(SyntaxKind.TypeAliasDeclaration)) {
     // Already a type alias — emit as-is (with export prefix)
     const text = decl.getText();
-    return text.startsWith('export') ? text : `export ${text}`;
+    const exported = text.startsWith('export') ? text : `export ${text}`;
+    return `${jsDocText(decl)}${exported}`;
   }
 
   if (decl.isKind(SyntaxKind.InterfaceDeclaration)) {
     // Use ts-morph API to avoid fragile regex; express extends as intersection types
     const extendsTypes = decl.getHeritageClauses()
       .flatMap((h) => h.getTypeNodes().map((t) => t.getText()));
-    const members = decl.getMembers().map((m) => `  ${m.getText()}`);
+    const members = decl.getMembers().map((m) => `${jsDocText(m, '  ')}  ${m.getText()}`);
     const ownBody = members.length > 0 ? `{\n${members.join('\n')}\n}` : '{}';
     const rhs = extendsTypes.length > 0 ? `${extendsTypes.join(' & ')} & ${ownBody}` : ownBody;
-    return `export type ${name}${typeParamsStr} = ${rhs}`;
+    return `${jsDocText(decl)}export type ${name}${typeParamsStr} = ${rhs}`;
   }
 
   if (decl.isKind(SyntaxKind.ClassDeclaration)) {
@@ -309,7 +321,7 @@ function toTypeAliasText(
     const memberLines = classToMemberLines(decl);
     const ownBody = memberLines.length > 0 ? `{\n${memberLines.join('\n')}\n}` : '{}';
     const rhs = extendsTypes.length > 0 ? `${extendsTypes.join(' & ')} & ${ownBody}` : ownBody;
-    return `export type ${name}${typeParamsStr} = ${rhs}`;
+    return `${jsDocText(decl)}export type ${name}${typeParamsStr} = ${rhs}`;
   }
 
   return null;
@@ -327,7 +339,8 @@ function toInterfaceText(
 
   if (decl.isKind(SyntaxKind.InterfaceDeclaration)) {
     const text = decl.getText();
-    return text.startsWith('export') ? text : `export ${text}`;
+    const exported = text.startsWith('export') ? text : `export ${text}`;
+    return `${jsDocText(decl)}${exported}`;
   }
 
   if (decl.isKind(SyntaxKind.TypeAliasDeclaration)) {
@@ -335,7 +348,9 @@ function toInterfaceText(
     if (!typeNode) return null;
 
     if (typeNode.isKind(SyntaxKind.TypeLiteral)) {
-      return `export interface ${name}${typeParamsStr} ${typeNode.getText()}`;
+      const members = typeNode.getMembers().map((m) => `${jsDocText(m, '  ')}  ${m.getText()}`);
+      const body = members.length > 0 ? `{\n${members.join('\n')}\n}` : '{}';
+      return `${jsDocText(decl)}export interface ${name}${typeParamsStr} ${body}`;
     }
 
     if (typeNode.isKind(SyntaxKind.IntersectionType)) {
@@ -343,14 +358,14 @@ function toInterfaceText(
       const memberLines: string[] = [];
       for (const part of typeNode.getTypeNodes()) {
         if (part.isKind(SyntaxKind.TypeLiteral)) {
-          memberLines.push(...part.getMembers().map((m) => `  ${m.getText()}`));
+          memberLines.push(...part.getMembers().map((m) => `${jsDocText(m, '  ')}  ${m.getText()}`));
         } else {
           namedTypes.push(part.getText());
         }
       }
       const heritageStr = namedTypes.length > 0 ? ` extends ${namedTypes.join(', ')}` : '';
       const body = memberLines.length > 0 ? `{\n${memberLines.join('\n')}\n}` : '{}';
-      return `export interface ${name}${typeParamsStr}${heritageStr} ${body}`;
+      return `${jsDocText(decl)}export interface ${name}${typeParamsStr}${heritageStr} ${body}`;
     }
 
     return null;
@@ -363,7 +378,7 @@ function toInterfaceText(
     const heritageStr = allBaseTypes.length > 0 ? ` extends ${allBaseTypes.join(', ')}` : '';
     const memberLines = classToMemberLines(decl);
     const body = memberLines.length > 0 ? `{\n${memberLines.join('\n')}\n}` : '{}';
-    return `export interface ${name}${typeParamsStr}${heritageStr} ${body}`;
+    return `${jsDocText(decl)}export interface ${name}${typeParamsStr}${heritageStr} ${body}`;
   }
 
   return null;
@@ -388,9 +403,9 @@ function toDeclareClassText(
     const implementsTypes = decl.getHeritageClauses()
       .flatMap((h) => h.getTypeNodes().map((t) => t.getText()));
     const implementsStr = implementsTypes.length > 0 ? ` implements ${implementsTypes.join(', ')}` : '';
-    const members = decl.getMembers().map((m) => `  ${m.getText()}`);
+    const members = decl.getMembers().map((m) => `${jsDocText(m, '  ')}  ${m.getText()}`);
     const body = members.length > 0 ? `\n${members.join('\n')}\n` : '';
-    return `export declare class ${name}${typeParamsStr}${implementsStr} {${body}}`;
+    return `${jsDocText(decl)}export declare class ${name}${typeParamsStr}${implementsStr} {${body}}`;
   }
 
   if (decl.isKind(SyntaxKind.TypeAliasDeclaration)) {
@@ -398,13 +413,9 @@ function toDeclareClassText(
     if (!typeNode) return null;
 
     if (typeNode.isKind(SyntaxKind.TypeLiteral)) {
-      const body = typeNode.getText();
-      const innerText = body.slice(1, -1).trim();
-      const memberLines = innerText
-        ? innerText.split(';').map((s) => s.trim()).filter(Boolean).map((s) => `  ${s};`)
-        : [];
+      const memberLines = typeNode.getMembers().map((m) => `${jsDocText(m, '  ')}  ${m.getText()}`);
       const classBody = memberLines.length > 0 ? `\n${memberLines.join('\n')}\n` : '';
-      return `export declare class ${name}${typeParamsStr} {${classBody}}`;
+      return `${jsDocText(decl)}export declare class ${name}${typeParamsStr} {${classBody}}`;
     }
 
     if (typeNode.isKind(SyntaxKind.IntersectionType)) {
@@ -412,14 +423,14 @@ function toDeclareClassText(
       const memberLines: string[] = [];
       for (const part of typeNode.getTypeNodes()) {
         if (part.isKind(SyntaxKind.TypeLiteral)) {
-          memberLines.push(...part.getMembers().map((m) => `  ${m.getText()}`));
+          memberLines.push(...part.getMembers().map((m) => `${jsDocText(m, '  ')}  ${m.getText()}`));
         } else {
           namedTypes.push(part.getText());
         }
       }
       const implementsStr = namedTypes.length > 0 ? ` implements ${namedTypes.join(', ')}` : '';
       const classBody = memberLines.length > 0 ? `\n${memberLines.join('\n')}\n` : '';
-      return `export declare class ${name}${typeParamsStr}${implementsStr} {${classBody}}`;
+      return `${jsDocText(decl)}export declare class ${name}${typeParamsStr}${implementsStr} {${classBody}}`;
     }
 
     return null;
@@ -440,7 +451,8 @@ function applyDeclarationMapping(
   // Enums are always preserved as-is.
   if (stmt.isKind(SyntaxKind.EnumDeclaration)) {
     const raw = stmt.getText();
-    return { text: raw.startsWith('export') ? raw : `export ${raw}`, warned: false };
+    const exported = raw.startsWith('export') ? raw : `export ${raw}`;
+    return { text: `${jsDocText(stmt)}${exported}`, warned: false };
   }
 
   // Classes in preserve mode still need ambient-class conversion (strip bodies).
@@ -449,7 +461,8 @@ function applyDeclarationMapping(
       return { text: toAmbientClassText(stmt), warned: false };
     }
     const raw = stmt.getText();
-    return { text: raw.startsWith('export') ? raw : `export ${raw}`, warned: false };
+    const exported = raw.startsWith('export') ? raw : `export ${raw}`;
+    return { text: `${jsDocText(stmt)}${exported}`, warned: false };
   }
 
   const declForConversion = stmt as Exclude<PublishableDeclaration, EnumDeclaration>;
@@ -469,7 +482,8 @@ function applyDeclarationMapping(
 
   // Fallback — emit as-is with a warning
   const raw = stmt.getText();
-  return { text: raw.startsWith('export') ? raw : `export ${raw}`, warned: true };
+  const exported = raw.startsWith('export') ? raw : `export ${raw}`;
+  return { text: `${jsDocText(stmt)}${exported}`, warned: true };
 }
 
 /**

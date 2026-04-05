@@ -340,6 +340,42 @@ describe('extract – decorators and constructors', () => {
     expect(content).not.toMatch(/constructor/);
   });
 
+  it('emits inferred type annotation for a property with an initializer in declare class output', () => {
+    const sr = buildScanResult(`
+      export enum WsLobbyCommandType {
+        SYNC_PLAYER = 'SYNC_PLAYER',
+      }
+
+      /** @publish */
+      export class SyncPlayerCommand {
+        readonly type = WsLobbyCommandType.SYNC_PLAYER;
+        constructor(public readonly payload: string) {}
+      }
+    `);
+    const result = extract([sr]);
+    const content = result.files[0]?.content ?? '';
+    expect(content).toMatch(/export declare class SyncPlayerCommand/);
+    expect(content).toMatch(/readonly type:.*WsLobbyCommandType\.SYNC_PLAYER/);
+  });
+
+  it('emits inferred type annotation for a property with an initializer in type mapping output', () => {
+    const sr = buildScanResult(`
+      export enum WsLobbyCommandType {
+        SYNC_PLAYER = 'SYNC_PLAYER',
+      }
+
+      /** @publish */
+      export class SyncPlayerCommand {
+        readonly type = WsLobbyCommandType.SYNC_PLAYER;
+        constructor(public readonly payload: string) {}
+      }
+    `);
+    const result = extract([sr], { declarationMapping: 'type' });
+    const content = result.files[0]?.content ?? '';
+    expect(content).toMatch(/export type SyncPlayerCommand\s*=/);
+    expect(content).toMatch(/\btype:.*WsLobbyCommandType\.SYNC_PLAYER/);
+  });
+
   it('strips decorators and promotes constructor parameter properties together', () => {
     const sr = buildScanResult(`
       function IsString() { return () => {}; }
@@ -404,5 +440,128 @@ describe('extract – collision detection', () => {
     const result = extract([sr1, sr2, sr3]);
     expect(result.collisions).toHaveLength(1);
     expect(result.collisions[0]?.filePaths).toHaveLength(3);
+  });
+});
+
+describe('extract – JSDoc comment preservation', () => {
+  it('preserves declaration-level JSDoc in preserve mode (interface)', () => {
+    const sr = buildScanResult(`
+      /**
+       * Represents a user.
+       * @publish
+       */
+      export interface UserDto {
+        id: string;
+      }
+    `);
+    const result = extract([sr]);
+    expect(result.files[0]?.content).toContain('Represents a user.');
+    expect(result.files[0]?.content).toMatch(/\/\*\*[\s\S]*?Represents a user[\s\S]*?\*\//);
+  });
+
+  it('preserves member-level JSDoc in preserve mode (interface)', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export interface UserDto {
+        /** The user ID. */
+        id: string;
+        /** The user email. */
+        email: string;
+      }
+    `);
+    const result = extract([sr]);
+    expect(result.files[0]?.content).toContain('The user ID.');
+    expect(result.files[0]?.content).toContain('The user email.');
+  });
+
+  it('preserves declaration-level JSDoc when mapping to type alias', () => {
+    const sr = buildScanResult(`
+      /**
+       * Represents a user.
+       * @publish
+       */
+      export interface UserDto {
+        id: string;
+      }
+    `);
+    const result = extract([sr], { declarationMapping: 'type' });
+    expect(result.files[0]?.content).toContain('Represents a user.');
+  });
+
+  it('preserves member-level JSDoc when mapping interface to type alias', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export interface UserDto {
+        /** The user ID. */
+        id: string;
+      }
+    `);
+    const result = extract([sr], { declarationMapping: 'type' });
+    expect(result.files[0]?.content).toContain('The user ID.');
+  });
+
+  it('preserves declaration-level JSDoc when mapping to interface', () => {
+    const sr = buildScanResult(`
+      /**
+       * A user alias.
+       * @publish
+       */
+      export type UserDto = { id: string; };
+    `);
+    const result = extract([sr], { declarationMapping: 'interface' });
+    expect(result.files[0]?.content).toContain('A user alias.');
+  });
+
+  it('preserves member-level JSDoc when mapping type alias to interface', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export type UserDto = {
+        /** The user ID. */
+        id: string;
+      };
+    `);
+    const result = extract([sr], { declarationMapping: 'interface' });
+    expect(result.files[0]?.content).toContain('The user ID.');
+  });
+
+  it('preserves declaration-level JSDoc on class in preserve mode', () => {
+    const sr = buildScanResult(`
+      /**
+       * A user service class.
+       * @publish
+       */
+      export class UserService {
+        id: string;
+      }
+    `);
+    const result = extract([sr]);
+    expect(result.files[0]?.content).toContain('A user service class.');
+  });
+
+  it('preserves member-level JSDoc on class in preserve mode', () => {
+    const sr = buildScanResult(`
+      /** @publish */
+      export class UserService {
+        /** The service ID. */
+        id: string;
+        /** Gets the ID. */
+        getId(): string { return this.id; }
+      }
+    `);
+    const result = extract([sr]);
+    expect(result.files[0]?.content).toContain('The service ID.');
+    expect(result.files[0]?.content).toContain('Gets the ID.');
+  });
+
+  it('preserves declaration-level JSDoc on enum', () => {
+    const sr = buildScanResult(`
+      /**
+       * User roles.
+       * @publish
+       */
+      export enum Role { Admin = 'admin', User = 'user' }
+    `);
+    const result = extract([sr]);
+    expect(result.files[0]?.content).toContain('User roles.');
   });
 });
