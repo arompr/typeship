@@ -212,7 +212,41 @@ function collectCrossFileDiagnostics(
 function jsDocText(node: Node, indent = ''): string {
   const jsDocs = (node as any).getJsDocs?.() as Array<{ getText(): string }> | undefined;
   if (!jsDocs || jsDocs.length === 0) return '';
-  return jsDocs.map((doc) => `${indent}${doc.getText()}`).join('\n') + '\n';
+  return jsDocs.map((doc) => `${indent}${cleanPublishTag(doc.getText())}`).join('\n') + '\n';
+}
+
+/** Tag names that mark a declaration for publication – stripped from the generated output. */
+const PUBLISH_TAG_NAMES = new Set(['publish', 'typeship']);
+
+/**
+ * Strips @publish / @typeship tags from a JSDoc block and replaces them with
+ * @published so consumers know the type was intentionally exported by typeship.
+ * Blocks with no publish tag are returned unchanged.
+ */
+function cleanPublishTag(text: string): string {
+  if (!/@(publish|typeship)\b/i.test(text)) return text;
+
+  const lines = text.split('\n');
+
+  if (lines.length === 1) {
+    // Single-line block: /** @publish */ → /** @published */
+    const stripped = text.replace(/@(?:publish|typeship)\b\s*/gi, '').trimEnd();
+    return stripped.replace(/\s*\*\/$/, ' @published */');
+  }
+
+  const result: string[] = [];
+  for (const line of lines) {
+    const inner = line.trimStart().replace(/^\*\s*/, '');
+    const tag = inner.match(/^@(\w+)/)?.[1]?.toLowerCase();
+    if (tag && PUBLISH_TAG_NAMES.has(tag)) continue;
+
+    if (line.trim() === '*/') {
+      const lineIndent = line.match(/^(\s*)/)?.[1] ?? '';
+      result.push(`${lineIndent} * @published`);
+    }
+    result.push(line);
+  }
+  return result.join('\n');
 }
 
 /**

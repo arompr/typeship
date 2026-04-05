@@ -1,6 +1,6 @@
 {
   "name": "@arompr/typeship",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Mark TypeScript types as publishable and automatically extract, package, and publish them.",
   "keywords": [
     "typescript",
@@ -15,8 +15,12 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./plugin": {
+      "types": "./dist/plugin/index.d.cts",
+      "require": "./dist/plugin/index.cjs"
     }
   },
   "bin": {

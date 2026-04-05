@@ -3,7 +3,7 @@
  *
  * @example
  * ```ts
- * import { Publish } from 'typeship';
+ * import { Publish } from '@arompr/typeship';
  *
  * @Publish()
  * export class UserDto {
@@ -11,9 +11,11 @@
  *   email: string;
  * }
  * ```
+ *
+ * Compatible with both `experimentalDecorators` and TypeScript 5 TC39 decorators.
  */
-export function Publish(): ClassDecorator {
-  return (target: object) => {
+export function Publish() {
+  return (target: any): void => {
     Reflect.defineProperty(target, '__typeship_publish__', {
       value: true,
       enumerable: false,
