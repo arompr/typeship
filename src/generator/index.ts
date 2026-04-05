@@ -2,7 +2,7 @@ export {
   generatePackageJson,
   readExistingVersion,
   getPackageJsonPath,
-} from './package-json.js';
-export type { PackageJsonOptions, GeneratedPackageJson } from './package-json.js';
-export { generateTsConfig } from './tsconfig.js';
-export type { GeneratedTsConfig } from './tsconfig.js';
+} from './package-json';
+export type { PackageJsonOptions, GeneratedPackageJson } from './package-json';
+export { generateTsConfig } from './tsconfig';
+export type { GeneratedTsConfig } from './tsconfig';

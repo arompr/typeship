@@ -8,8 +8,8 @@ import {
   EnumDeclaration,
   ImportDeclaration,
 } from 'ts-morph';
-import { hasPublishJsDoc, hasPublishDecorator } from '../markers/jsdoc.js';
-import { ScanResult } from './scanner.js';
+import { hasPublishJsDoc, hasPublishDecorator } from '../markers/jsdoc';
+import { ScanResult } from './scanner';
 
 export interface ExtractedFile {
   /** Original source file path. */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Publish, isPublished } from '../../src/markers/decorator.js';
+import { Publish, isPublished } from '../../src/markers/decorator';
 
 describe('@Publish() decorator', () => {
   it('marks a class as published', () => {

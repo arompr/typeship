@@ -3,7 +3,7 @@ import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
-import { makeGenerateCommand } from './commands/generate.js';
+import { makeGenerateCommand } from './commands/generate';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

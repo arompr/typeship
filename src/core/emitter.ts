@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { minimatch } from 'minimatch';
-import type { ExtractionResult, ExtractedFile } from './extractor.js';
+import type { ExtractionResult, ExtractedFile } from './extractor';
 
 export interface EmitterOptions {
   /** Absolute path to the output directory root (e.g. /project/generated). */

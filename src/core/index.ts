@@ -1,6 +1,6 @@
-export { scan } from './scanner.js';
-export type { ScanResult, ScannerOptions } from './scanner.js';
-export { extract } from './extractor.js';
-export type { ExtractedFile, ExtractionResult, ExtractionDiagnostic } from './extractor.js';
-export { emit } from './emitter.js';
-export type { EmitterOptions, EmittedFile, EmitResult } from './emitter.js';
+export { scan } from './scanner';
+export type { ScanResult, ScannerOptions } from './scanner';
+export { extract } from './extractor';
+export type { ExtractedFile, ExtractionResult, ExtractionDiagnostic } from './extractor';
+export { emit } from './emitter';
+export type { EmitterOptions, EmittedFile, EmitResult } from './emitter';

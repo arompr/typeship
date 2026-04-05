@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { emit } from '../../src/core/emitter.js';
-import type { ExtractionResult } from '../../src/core/extractor.js';
+import { emit } from '../../src/core/emitter';
+import type { ExtractionResult } from '../../src/core/extractor';
 
 function mockExtraction(fileNames: string[]): ExtractionResult {
   return {

@@ -1,15 +1,15 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Command } from 'commander';
-import { loadConfig } from '../../config.js';
-import { scan } from '../../core/scanner.js';
-import { extract } from '../../core/extractor.js';
-import { emit } from '../../core/emitter.js';
+import { loadConfig } from '../../config';
+import { scan } from '../../core/scanner';
+import { extract } from '../../core/extractor';
+import { emit } from '../../core/emitter';
 import {
   generatePackageJson,
   getPackageJsonPath,
-} from '../../generator/index.js';
-import { log } from '../logger.js';
+} from '../../generator/index';
+import { log } from '../logger';
 import pc from 'picocolors';
 
 export function makeGenerateCommand(): Command {

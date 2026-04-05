@@ -1,5 +1,5 @@
 import { Project, SourceFile, Node } from 'ts-morph';
-import { findPublishableNodes } from '../markers/jsdoc.js';
+import { findPublishableNodes } from '../markers/jsdoc';
 
 export interface ScanResult {
   /** Source file that contains at least one publishable node. */

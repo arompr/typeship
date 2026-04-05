@@ -1,32 +1,11 @@
 // Markers
-export { Publish, isPublished } from './markers/index.js';
+export * from './markers/index';
 
 // Core pipeline
-export { scan, extract, emit } from './core/index.js';
-export type {
-  ScanResult,
-  ScannerOptions,
-  ExtractedFile,
-  ExtractionResult,
-  ExtractionDiagnostic,
-  EmitterOptions,
-  EmittedFile,
-  EmitResult,
-} from './core/index.js';
+export * from './core/index';
 
 // Generators
-export {
-  generatePackageJson,
-  generateTsConfig,
-  readExistingVersion,
-  getPackageJsonPath,
-} from './generator/index.js';
-export type {
-  PackageJsonOptions,
-  GeneratedPackageJson,
-  GeneratedTsConfig,
-} from './generator/index.js';
+export * from './generator/index';
 
 // Config
-export { loadConfig } from './config.js';
-export type { TypeshipConfig } from './config.js';
+export * from './config';

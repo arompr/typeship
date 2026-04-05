@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Project } from 'ts-morph';
-import { extract } from '../../src/core/extractor.js';
-import { findPublishableNodes } from '../../src/markers/jsdoc.js';
+import { extract } from '../../src/core/extractor';
+import { findPublishableNodes } from '../../src/markers/jsdoc';
 
 function buildScanResult(code: string, fileName = 'types.ts') {
   const project = new Project({ useInMemoryFileSystem: true });

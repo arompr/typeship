@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { generatePackageJson, readExistingVersion } from '../../src/generator/package-json.js';
-import { generateTsConfig } from '../../src/generator/tsconfig.js';
+import { generatePackageJson, readExistingVersion } from '../../src/generator/package-json';
+import { generateTsConfig } from '../../src/generator/tsconfig';
 
 describe('generatePackageJson', () => {
   it('generates a package.json with correct fields', () => {

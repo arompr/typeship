@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Project } from 'ts-morph';
-import { hasPublishJsDoc, hasPublishDecorator, findPublishableNodes } from '../../src/markers/jsdoc.js';
+import { hasPublishJsDoc, hasPublishDecorator, findPublishableNodes } from '../../src/markers/jsdoc';
 
 function createProject(code: string) {
   const project = new Project({ useInMemoryFileSystem: true });
