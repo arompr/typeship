@@ -10,6 +10,13 @@ export default defineConfig([
     splitting: false,
   },
   {
+    entry: { core: 'src/core-entry.ts' },
+    format: ['esm', 'cjs'],
+    dts: true,
+    sourcemap: true,
+    splitting: false,
+  },
+  {
     entry: { 'cli/index': 'src/cli/index.ts' },
     format: ['esm'],
     sourcemap: true,

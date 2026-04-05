@@ -1,8 +1,5 @@
-// Markers
-export * from './markers/index';
-
-// Core pipeline
-export * from './core/index';
+// Public API — ts-morph-free so consumers get clean declarations
+export { Publish, isPublished } from './markers/decorator';
 
 // Generators
 export * from './generator/index';
