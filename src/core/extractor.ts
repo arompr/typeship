@@ -77,6 +77,29 @@ function getDeclarationName(node: PublishableDeclaration): string | undefined {
 }
 
 /**
+ * Returns the leftmost identifier text of an entity name node.
+ * For a simple name like `Foo` it returns `"Foo"`.
+ * For a qualified name like `Foo.Bar` or `Foo.Bar.Baz` it returns `"Foo"`.
+ */
+function rootTypeName(typeName: Node): string {
+  let node = typeName;
+  while (node.isKind(SyntaxKind.QualifiedName)) {
+    node = node.asKindOrThrow(SyntaxKind.QualifiedName).getLeft();
+  }
+  return node.getText();
+}
+
+/**
+ * Strips inline `import('/abs/path/to/module').` prefixes from a type string.
+ * These are emitted by TypeScript's type printer when it resolves a cross-module
+ * type without a corresponding top-level import in scope (e.g. for class
+ * properties that have no explicit type annotation).
+ */
+function stripInlineImports(text: string): string {
+  return text.replace(/import\(['"][^'"]*['"]\)\./g, '');
+}
+
+/**
  * Collects all named exports that are referenced (directly or transitively)
  * by the publishable nodes, within the same source file.
  */
@@ -94,7 +117,8 @@ function collectLocalDependencies(
     // Walk only TypeReference nodes to avoid false-positives from property names
     node.forEachDescendant((child) => {
       if (child.isKind(SyntaxKind.TypeReference)) {
-        const text = child.asKindOrThrow(SyntaxKind.TypeReference).getTypeName().getText();
+        // For qualified names like Enum.MEMBER, match only the root identifier
+        const text = rootTypeName(child.asKindOrThrow(SyntaxKind.TypeReference).getTypeName());
         const localDecl = sourceFile
           .getStatements()
           .find(
@@ -149,7 +173,8 @@ function collectCrossFileDiagnostics(
   for (const node of publishableNodes) {
     node.forEachDescendant((child) => {
       if (!child.isKind(SyntaxKind.TypeReference)) return;
-      const typeName = child.asKindOrThrow(SyntaxKind.TypeReference).getTypeName().getText();
+      // For qualified names like Enum.MEMBER, check only the root identifier
+      const typeName = rootTypeName(child.asKindOrThrow(SyntaxKind.TypeReference).getTypeName());
 
       // Already resolved locally or already processed
       if (needed.has(typeName) || seen.has(typeName)) return;
@@ -458,11 +483,11 @@ function applyDeclarationMapping(
   // Classes in preserve mode still need ambient-class conversion (strip bodies).
   if (mapping === 'preserve') {
     if (stmt.isKind(SyntaxKind.ClassDeclaration)) {
-      return { text: toAmbientClassText(stmt), warned: false };
+      return { text: stripInlineImports(toAmbientClassText(stmt)), warned: false };
     }
     const raw = stmt.getText();
     const exported = raw.startsWith('export') ? raw : `export ${raw}`;
-    return { text: `${jsDocText(stmt)}${exported}`, warned: false };
+    return { text: stripInlineImports(`${jsDocText(stmt)}${exported}`), warned: false };
   }
 
   const declForConversion = stmt as Exclude<PublishableDeclaration, EnumDeclaration>;
@@ -477,13 +502,13 @@ function applyDeclarationMapping(
   }
 
   if (converted !== null) {
-    return { text: converted, warned: false };
+    return { text: stripInlineImports(converted), warned: false };
   }
 
   // Fallback — emit as-is with a warning
   const raw = stmt.getText();
   const exported = raw.startsWith('export') ? raw : `export ${raw}`;
-  return { text: `${jsDocText(stmt)}${exported}`, warned: true };
+  return { text: stripInlineImports(`${jsDocText(stmt)}${exported}`), warned: true };
 }
 
 /**

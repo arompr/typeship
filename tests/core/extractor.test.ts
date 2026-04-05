@@ -443,6 +443,119 @@ describe('extract – collision detection', () => {
   });
 });
 
+describe('extract – inline import() stripping (Fix B)', () => {
+  it('does not emit inline import() paths in declare class output for enum-initialised properties', () => {
+    const sr = buildScanResult(`
+      export enum WsLobbyCommandType {
+        SYNC_PLAYER = 'SYNC_PLAYER',
+      }
+
+      /** @publish */
+      export class SyncPlayerCommand {
+        readonly type = WsLobbyCommandType.SYNC_PLAYER;
+      }
+    `);
+    const content = extract([sr]).files[0]?.content ?? '';
+    expect(content).not.toMatch(/import\(['"]/);
+    expect(content).toMatch(/readonly type:.*WsLobbyCommandType\.SYNC_PLAYER/);
+  });
+
+  it('does not emit inline import() paths when mapping a class to a type alias', () => {
+    const sr = buildScanResult(`
+      export enum WsLobbyCommandType {
+        MARK_READY = 'MARK_READY',
+      }
+
+      /** @publish */
+      export class MarkReadyCommand {
+        readonly type = WsLobbyCommandType.MARK_READY;
+      }
+    `);
+    const content = extract([sr], { declarationMapping: 'type' }).files[0]?.content ?? '';
+    expect(content).not.toMatch(/import\(['"]/);
+    expect(content).toMatch(/type:.*WsLobbyCommandType\.MARK_READY/);
+  });
+
+  it('strips inline import() paths already present in source type alias text', () => {
+    // TypeScript can produce this syntax in certain compilation modes or when
+    // inline import-type expressions are written directly in the source.
+    const sr = buildScanResult(`
+      /** @publish */
+      export type SyncPlayerCommand = {
+        type: import('./ws-lobby-command-type').WsLobbyCommandType.SYNC_PLAYER;
+      };
+    `);
+    const content = extract([sr]).files[0]?.content ?? '';
+    expect(content).not.toMatch(/import\(['"]/);
+    expect(content).toMatch(/type:.*WsLobbyCommandType\.SYNC_PLAYER/);
+  });
+});
+
+describe('extract – qualified name dependency resolution (Fix C)', () => {
+  it('pulls in a local enum as a dependency when referenced via a qualified member type', () => {
+    const sr = buildScanResult(`
+      export enum Status {
+        Active = 'active',
+      }
+
+      /** @publish */
+      export type UserDto = {
+        status: Status.Active;
+      };
+    `);
+    const content = extract([sr]).files[0]?.content ?? '';
+    // The enum must be emitted even though only Status.Active (not Status) appears as a TypeReference
+    expect(content).toContain('export enum Status');
+    expect(content).toMatch(/status:.*Status\.Active/);
+  });
+
+  it('re-emits the import for an enum used as a qualified member type from another file', () => {
+    const project = new Project({ useInMemoryFileSystem: true });
+    const enumFile = project.createSourceFile('status.ts', `
+      /** @publish */
+      export enum Status {
+        Active = 'active',
+      }
+    `);
+    const dtoFile = project.createSourceFile('user.ts', `
+      import { Status } from './status';
+
+      /** @publish */
+      export type UserDto = {
+        status: Status.Active;
+      };
+    `);
+    const result = extract([
+      { sourceFile: dtoFile, nodes: findPublishableNodes(dtoFile) },
+      { sourceFile: enumFile, nodes: findPublishableNodes(enumFile) },
+    ]);
+    const dtoContent = result.files.find((f) => f.fileName === 'user.d.ts')?.content ?? '';
+    expect(dtoContent).toContain("import type { Status }");
+    expect(dtoContent).not.toMatch(/import\(['"]/);
+  });
+
+  it('reports a diagnostic when a cross-file enum used as a qualified type is not marked @publish', () => {
+    const project = new Project({ useInMemoryFileSystem: true });
+    const enumFile = project.createSourceFile('status.ts', `
+      export enum Status {
+        Active = 'active',
+      }
+    `);
+    const dtoFile = project.createSourceFile('user.ts', `
+      import { Status } from './status';
+
+      /** @publish */
+      export type UserDto = {
+        status: Status.Active;
+      };
+    `);
+    const result = extract([
+      { sourceFile: dtoFile, nodes: findPublishableNodes(dtoFile) },
+    ]);
+    expect(result.diagnostics.some((d) => d.typeName === 'Status')).toBe(true);
+  });
+});
+
 describe('extract – JSDoc comment preservation', () => {
   it('preserves declaration-level JSDoc in preserve mode (interface)', () => {
     const sr = buildScanResult(`
