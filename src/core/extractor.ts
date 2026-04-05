@@ -288,6 +288,17 @@ function toAmbientClassText(decl: ClassDeclaration): string {
  */
 function classToMemberLines(decl: ClassDeclaration): string[] {
   const lines: string[] = [];
+  for (const ctor of decl.getConstructors()) {
+    for (const param of ctor.getParameters()) {
+      if (!param.isParameterProperty()) continue;
+      const mods = param.getModifiers().map((m) => m.getText());
+      if (mods.includes('private') || mods.includes('protected') || mods.includes('static')) continue;
+      const optional = param.hasQuestionToken() ? '?' : '';
+      const typeNode = param.getTypeNode();
+      const typeStr = typeNode ? `: ${typeNode.getText()}` : `: ${param.getType().getText()}`;
+      lines.push(`  ${param.getName()}${optional}${typeStr};`);
+    }
+  }
   for (const prop of decl.getProperties()) {
     const mods = prop.getModifiers().map((m) => m.getText());
     if (mods.includes('private') || mods.includes('protected') || mods.includes('static')) continue;
