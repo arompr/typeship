@@ -14,6 +14,8 @@ function mockExtraction(fileNames: string[]): ExtractionResult {
     })),
     exportedNames: ['Foo'],
     diagnostics: [],
+    warnings: [],
+    collisions: [],
   };
 }
 
@@ -71,6 +73,8 @@ describe('emit – outputGrouping', () => {
       })),
       exportedNames: entries.map((e) => e.fileName.replace(/[^a-zA-Z]/g, '')),
       diagnostics: [],
+      warnings: [],
+      collisions: [],
     };
   }
 

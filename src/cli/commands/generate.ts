@@ -64,7 +64,7 @@ export function makeGenerateCommand(): Command {
         log.success(`Found ${pc.bold(String(totalNodes))} publishable node(s) in ${pc.bold(String(scanResults.length))} file(s)`);
 
         if (scanResults.length === 0) {
-          log.warn('No publishable types found. Add @Publish() or /** @publish */ to your types.');
+          log.warn('No publishable types found. Add /** @publish */ to your types.');
           process.exit(0);
         }
 

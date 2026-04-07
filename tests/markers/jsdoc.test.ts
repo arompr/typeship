@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Project } from 'ts-morph';
-import { hasPublishJsDoc, hasPublishDecorator, findPublishableNodes } from '../../src/markers/jsdoc';
+import { hasPublishJsDoc, findPublishableNodes } from '../../src/markers/jsdoc';
 
 function createProject(code: string) {
   const project = new Project({ useInMemoryFileSystem: true });
@@ -43,43 +43,14 @@ describe('hasPublishJsDoc', () => {
   });
 });
 
-describe('hasPublishDecorator', () => {
-  it('detects @Publish() decorator on class', () => {
-    const sf = createProject(`
-      function Publish(): ClassDecorator { return () => {}; }
-      @Publish()
-      export class UserDto { id!: string; }
-    `);
-    const node = sf.getClassOrThrow('UserDto');
-    expect(hasPublishDecorator(node)).toBe(true);
-  });
-
-  it('returns false for class without @Publish()', () => {
-    const sf = createProject(`export class UserDto { id!: string; }`);
-    const node = sf.getClassOrThrow('UserDto');
-    expect(hasPublishDecorator(node)).toBe(false);
-  });
-
-  it('returns false for non-class nodes', () => {
-    const sf = createProject(`
-      /** @publish */
-      export interface UserDto { id: string; }
-    `);
-    const node = sf.getInterfaceOrThrow('UserDto');
-    expect(hasPublishDecorator(node)).toBe(false);
-  });
-});
-
 describe('findPublishableNodes', () => {
-  it('collects both JSDoc-tagged and decorator-marked nodes', () => {
+  it('collects JSDoc-tagged nodes', () => {
     const sf = createProject(`
-      function Publish(): ClassDecorator { return () => {}; }
-
       /** @publish */
       export interface UserDto { id: string; }
 
-      @Publish()
-      export class ProductDto { name!: string; }
+      /** @publish */
+      export type ProductId = string;
 
       export interface IgnoredDto { x: number; }
     `);

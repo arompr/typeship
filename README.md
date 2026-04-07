@@ -4,19 +4,9 @@
 
 `typeship` solves a common full-stack TypeScript problem: keeping backend and frontend types in sync without manual duplication or monorepo constraints.
 
-Mark a type as **publishable**, run `npx typeship generate`, and get a ready-to-publish npm package.
-
----
+Mark a type with `/** @publish */`, run `npx typeship generate`, and get a ready-to-publish npm package.
 
 ## Quick Start
-
-`typeship` is published to GitHub Packages. Add the registry to your `.npmrc` first:
-
-```
-@arompr:registry=https://npm.pkg.github.com
-```
-
-Then install:
 
 ```bash
 npm install --save-dev @arompr/typeship
@@ -24,7 +14,7 @@ npm install --save-dev @arompr/typeship
 
 ### 1. Mark your types
 
-**Option A — JSDoc tag** (works on interfaces, types, classes, enums):
+Add the `@publish` JSDoc tag to any interface, type, class, or enum:
 
 ```ts
 /** @publish */
@@ -36,18 +26,6 @@ export interface UserDto {
 
 /** @publish */
 export type UserId = string;
-```
-
-**Option B — `@Publish()` decorator** (classes only):
-
-```ts
-import { Publish } from 'typeship';
-
-@Publish()
-export class CreateUserDto {
-  name!: string;
-  email!: string;
-}
 ```
 
 ### 2. Generate the package
@@ -84,8 +62,6 @@ npm install @my-org/api-types
 import type { UserDto } from '@my-org/api-types';
 ```
 
----
-
 ## CLI Reference
 
 ```
@@ -103,11 +79,9 @@ Options:
   -h, --help                  Show help
 ```
 
----
-
 ## Config File
 
-Create `typeship.config.json` (or `.typeshiprc.json`) in your project root to avoid repeating CLI flags:
+Create `typeship.config.json` (or `.typeshiprc.json`) in your project root:
 
 ```json
 {
@@ -123,72 +97,20 @@ Create `typeship.config.json` (or `.typeshiprc.json`) in your project root to av
 
 CLI flags always override config file values.
 
-### Config Options
-
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `packageName` | `string` | — | **Required.** Package name for the generated package (e.g. `@my-org/api-types`) |
-| `outDir` | `string` | `./generated` | Output directory for the generated package |
+| `packageName` | `string` | — | **Required.** Package name for the generated package |
+| `outDir` | `string` | `./generated` | Output directory |
 | `registry` | `string` | `https://registry.npmjs.org` | npm registry URL |
 | `bump` | `patch \| minor \| major` | — | Semver bump to apply on each generation |
-| `tsConfig` | `string` | `tsconfig.json` | Path to the project's `tsconfig.json` to scan |
-| `declarationMapping` | `preserve \| type \| interface \| class` | `preserve` | Normalise all exported declarations to a single TypeScript construct. `preserve` keeps each declaration in its original form; other values convert interfaces, types, and classes where possible (enums are always preserved) |
-| `outputGrouping` | `per-file \| single \| Record<string, string[]>` | `per-file` | Controls how declarations are grouped into output files. `per-file` mirrors the source layout; `single` merges everything into one `index.d.ts`; a record maps output filenames to arrays of minimatch glob patterns matched against source paths |
-
-#### `outputGrouping` example
-
-```json
-{
-  "packageName": "@my-org/api-types",
-  "outputGrouping": {
-    "users.d.ts":  ["**/users/**"],
-    "orders.d.ts": ["**/orders/**"]
-  }
-}
-```
-
----
-
-## CI Integration — GitHub Actions
-
-Copy `node_modules/typeship/templates/github-actions.yml` to `.github/workflows/publish-types.yml`:
-
-```yaml
-name: Publish Types
-
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**/*.ts'
-      - 'typeship.config.json'
-
-jobs:
-  publish-types:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: 'https://npm.pkg.github.com'
-      - run: npm ci
-      - run: npx typeship generate --bump patch
-      - working-directory: ./generated
-        run: npm install && npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
----
+| `tsConfig` | `string` | `tsconfig.json` | Path to the project's `tsconfig.json` |
+| `declarationMapping` | `preserve \| type \| interface \| class` | `preserve` | Normalize declarations to a single TypeScript construct kind |
+| `outputGrouping` | `per-file \| single \| Record<string, string[]>` | `per-file` | Controls how declarations are grouped into output files |
 
 ## Programmatic API
 
 ```ts
-import { scan, extract, emit, generatePackageJson, generateTsConfig } from 'typeship';
+import { scan, extract, emit, generatePackageJson, generateTsConfig } from '@arompr/typeship/core';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -202,43 +124,21 @@ writeFileSync('./generated/package.json', JSON.stringify(pkg, null, 2));
 writeFileSync('./generated/tsconfig.json', JSON.stringify(generateTsConfig(), null, 2));
 ```
 
----
+## Editor Plugin
 
-## Example: NestJS Backend → Next.js Frontend
+Enable `@publish` tag completions in your editor by adding the TS language service plugin:
 
-**Backend** (`src/users/user.dto.ts`):
-
-```ts
-import { Publish } from 'typeship';
-
-@Publish()
-export class UserDto {
-  id!: string;
-  email!: string;
-  createdAt!: Date;
+```json
+{
+  "compilerOptions": {
+    "plugins": [{ "name": "@arompr/typeship/plugin" }]
+  }
 }
 ```
 
-**Generate & publish:**
+## CI Integration
 
-```bash
-npx typeship generate --package-name @my-org/api-types --bump patch
-cd generated && npm publish
-```
-
-**Frontend** (`pages/profile.tsx`):
-
-```tsx
-import type { UserDto } from '@my-org/api-types';
-
-export default function Profile({ user }: { user: UserDto }) {
-  return <div>{user.email}</div>;
-}
-```
-
-No monorepo. No manual copying. Types stay in sync automatically.
-
----
+A GitHub Actions workflow template is included at `templates/github-actions.yml`. Copy it to `.github/workflows/publish-types.yml` to auto-publish types on every push to `main`.
 
 ## License
 

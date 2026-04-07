@@ -1,2 +1,1 @@
-export { Publish, isPublished } from './decorator';
-export { hasPublishJsDoc, hasPublishDecorator, findPublishableNodes } from './jsdoc';
+export { hasPublishJsDoc, findPublishableNodes } from './jsdoc';

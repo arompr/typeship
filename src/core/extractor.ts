@@ -8,7 +8,7 @@ import {
   EnumDeclaration,
   ImportDeclaration,
 } from 'ts-morph';
-import { hasPublishJsDoc, hasPublishDecorator } from '../markers/jsdoc';
+import { hasPublishJsDoc } from '../markers/jsdoc';
 import { ScanResult } from './scanner';
 
 export interface ExtractedFile {
@@ -193,7 +193,7 @@ function collectCrossFileDiagnostics(
 
       if (!decl) return;
 
-      if (hasPublishJsDoc(decl) || hasPublishDecorator(decl)) {
+      if (hasPublishJsDoc(decl)) {
         validCrossFileImports.add(typeName);
       } else {
         diagnostics.push({ typeName, filePath: resolvedFile.getFilePath() });
@@ -215,13 +215,13 @@ function jsDocText(node: Node, indent = ''): string {
   return jsDocs.map((doc) => `${indent}${cleanPublishTag(doc.getText())}`).join('\n') + '\n';
 }
 
-/** Tag names that mark a declaration for publication – stripped from the generated output. */
+/** Tag names that mark a declaration for publication — stripped from the generated output. */
 const PUBLISH_TAG_NAMES = new Set(['publish', 'typeship']);
 
 /**
- * Strips @publish / @typeship tags from a JSDoc block and replaces them with
- * @published so consumers know the type was intentionally exported by typeship.
- * Blocks with no publish tag are returned unchanged.
+ * Strips `@publish` / `@typeship` tags from a JSDoc block so the generated
+ * output doesn't carry the build-time marker.
+ * If the block becomes empty after stripping, returns an empty string.
  */
 function cleanPublishTag(text: string): string {
   if (!/@(publish|typeship)\b/i.test(text)) return text;
@@ -229,9 +229,11 @@ function cleanPublishTag(text: string): string {
   const lines = text.split('\n');
 
   if (lines.length === 1) {
-    // Single-line block: /** @publish */ → /** @published */
+    // Single-line block: /** @publish */ → empty (tag was the only content)
     const stripped = text.replace(/@(?:publish|typeship)\b\s*/gi, '').trimEnd();
-    return stripped.replace(/\s*\*\/$/, ' @published */');
+    // If only the comment delimiters remain, drop the whole block
+    if (/^\s*\/\*\*\s*\*\/\s*$/.test(stripped)) return '';
+    return stripped;
   }
 
   const result: string[] = [];
@@ -239,13 +241,16 @@ function cleanPublishTag(text: string): string {
     const inner = line.trimStart().replace(/^\*\s*/, '');
     const tag = inner.match(/^@(\w+)/)?.[1]?.toLowerCase();
     if (tag && PUBLISH_TAG_NAMES.has(tag)) continue;
-
-    if (line.trim() === '*/') {
-      const lineIndent = line.match(/^(\s*)/)?.[1] ?? '';
-      result.push(`${lineIndent} * @published`);
-    }
     result.push(line);
   }
+
+  // If only delimiters remain after stripping, drop the whole block
+  const body = result
+    .map((l) => l.trim())
+    .filter((l) => l !== '/**' && l !== '*/' && l !== '*' && l !== '')
+    .join('');
+  if (body.length === 0) return '';
+
   return result.join('\n');
 }
 

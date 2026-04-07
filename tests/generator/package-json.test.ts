@@ -73,6 +73,7 @@ describe('generateTsConfig', () => {
     expect(config.compilerOptions.outDir).toBe('./dist');
     expect(config.compilerOptions.rootDir).toBe('./src');
     expect(config.include).toContain('src/**/*');
+    expect(config.compilerOptions).not.toHaveProperty('experimentalDecorators');
   });
 });
 

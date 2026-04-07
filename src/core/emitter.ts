@@ -258,31 +258,3 @@ export function emit(
 
   return { files: emitted, barrelPath };
 }
-
-export interface EmitterOptions {
-  /** Absolute path to the output directory root (e.g. /project/generated). */
-  outDir: string;
-  /** When true, log what would be written but don't touch the filesystem. */
-  dryRun?: boolean;
-  /**
-   * Controls how extracted files are grouped into output .d.ts files.
-   *
-   * - `"per-file"` (default): one .d.ts per source file.
-   * - `"single"`: all declarations merged into a single `index.d.ts`; no barrel.
-   * - `Record<string, string[]>`: map output filename → glob patterns matched against
-   *   each source file's absolute path. Unmatched files are emitted per-file.
-   */
-  outputGrouping?: 'per-file' | 'single' | Record<string, string[]>;
-}
-
-export interface EmittedFile {
-  path: string;
-  content: string;
-}
-
-export interface EmitResult {
-  files: EmittedFile[];
-  barrelPath: string;
-}
-
-

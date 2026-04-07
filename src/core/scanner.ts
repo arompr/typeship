@@ -17,7 +17,7 @@ export interface ScannerOptions {
 
 /**
  * Loads a TypeScript project and returns all source files that contain
- * at least one publishable node (decorated with @Publish() or tagged @publish).
+ * at least one publishable node (tagged with `@publish` in JSDoc).
  */
 export function scan(options: ScannerOptions): ScanResult[] {
   const project = new Project({

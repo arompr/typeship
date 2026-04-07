@@ -10,7 +10,6 @@ export interface GeneratedTsConfig {
     strict: boolean;
     esModuleInterop: boolean;
     skipLibCheck: boolean;
-    experimentalDecorators: boolean;
   };
   include: string[];
   exclude: string[];
@@ -33,7 +32,6 @@ export function generateTsConfig(): GeneratedTsConfig {
       strict: true,
       esModuleInterop: true,
       skipLibCheck: true,
-      experimentalDecorators: true,
     },
     include: ['src/**/*'],
     exclude: ['node_modules', 'dist'],
