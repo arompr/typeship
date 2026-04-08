@@ -33,8 +33,6 @@ src/
 │   ├── index.ts         # Re-exports
 │   ├── package-json.ts  # Generates package.json with semver bumping
 │   └── tsconfig.ts      # Generates tsconfig.json for the output package
-├── plugin/
-│   └── index.cts        # TS Language Service plugin (@publish tag completions)
 ├── config.ts            # Config file loading (typeship.config.json)
 ├── index.ts             # Main entry point (generator + config exports)
 └── core-entry.ts        # Core entry point (pipeline + markers, for /core subpath)
@@ -56,11 +54,10 @@ templates/
 
 ## Package Exports
 
-The package exposes three subpath exports:
+The package exposes two subpath exports:
 
 - `@arompr/typeship` — Generator utilities and config (no ts-morph dependency)
 - `@arompr/typeship/core` — Full pipeline: scan, extract, emit, and marker detection (requires ts-morph)
-- `@arompr/typeship/plugin` — TypeScript Language Service plugin (CJS)
 
 ## Coding Conventions
 
@@ -83,13 +80,10 @@ npm run test:watch   # Watch mode
 
 ### Build Script
 
-The build script (`tsup`) produces four bundles:
+The build script (`tsup`) produces three bundles:
 1. Main entry (`src/index.ts`) → ESM + CJS + DTS
 2. Core entry (`src/core-entry.ts`) → ESM + CJS + DTS
 3. CLI (`src/cli/index.ts`) → ESM only
-4. Plugin (`src/plugin/index.cts`) → CJS + DTS
-
-A post-build step rewrites the plugin's `.d.cts` to use `export =` syntax.
 
 ## Testing
 

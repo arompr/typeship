@@ -124,18 +124,6 @@ writeFileSync('./generated/package.json', JSON.stringify(pkg, null, 2));
 writeFileSync('./generated/tsconfig.json', JSON.stringify(generateTsConfig(), null, 2));
 ```
 
-## Editor Plugin
-
-Enable `@publish` tag completions in your editor by adding the TS language service plugin:
-
-```json
-{
-  "compilerOptions": {
-    "plugins": [{ "name": "@arompr/typeship/plugin" }]
-  }
-}
-```
-
 ## CI Integration
 
 A GitHub Actions workflow template is included at `templates/github-actions.yml`. Copy it to `.github/workflows/publish-types.yml` to auto-publish types on every push to `main`.

@@ -22,11 +22,4 @@ export default defineConfig([
     sourcemap: true,
     splitting: false,
   },
-  {
-    entry: { 'plugin/index': 'src/plugin/index.cts' },
-    format: ['cjs'],
-    dts: true,
-    sourcemap: true,
-    splitting: false,
-  },
 ]);

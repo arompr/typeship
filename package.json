@@ -34,19 +34,12 @@
         "types": "./dist/core.d.cts",
         "default": "./dist/core.cjs"
       }
-    },
-    "./plugin": {
-      "types": "./dist/plugin/index.d.cts",
-      "require": "./dist/plugin/index.cjs"
     }
   },
   "typesVersions": {
     "*": {
       "core": [
         "dist/core.d.ts"
-      ],
-      "plugin": [
-        "dist/plugin/index.d.cts"
       ]
     }
   },
@@ -58,7 +51,7 @@
     "templates"
   ],
   "scripts": {
-    "build": "tsup && node -e \"const f='dist/plugin/index.d.cts',c=require('fs');c.writeFileSync(f,c.readFileSync(f,'utf8').replace('export { init as default }','export = init'))\"",
+    "build": "tsup",
     "build:watch": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
