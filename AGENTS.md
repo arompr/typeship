@@ -81,6 +81,7 @@ npm run test:watch   # Watch mode
 ### Build Script
 
 The build script (`tsup`) produces three bundles:
+
 1. Main entry (`src/index.ts`) → ESM + CJS + DTS
 2. Core entry (`src/core-entry.ts`) → ESM + CJS + DTS
 3. CLI (`src/cli/index.ts`) → ESM only
